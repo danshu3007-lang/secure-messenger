@@ -1,13 +1,30 @@
 name: Tests
+
 on: [push, pull_request]
+
 jobs:
   test:
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install .
-      - run: bash tests/certs/gen_test_certs.sh
-      - run: MESSENGER_CERT_DIR=tests/certs pytest tests/unit/ -v
+        env:
+          FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+      - name: Install package and test dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pytest
+          pip install .
+
+      - name: Generate test certificates
+        run: bash tests/certs/gen_test_certs.sh
+
+      - name: Run tests
+        run: MESSENGER_CERT_DIR=tests/certs pytest tests/unit/ -v
