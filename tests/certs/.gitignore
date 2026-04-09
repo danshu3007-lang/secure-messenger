@@ -1,0 +1,5 @@
+# Exclude generated certificate files — run gen_test_certs.sh to create them
+*.key
+*.crt
+*.srl
+*.csr

@@ -1,0 +1,28 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "secure-messenger"
+version = "1.0.0"
+description = "Stateless, TLS-secured terminal messenger for Linux"
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "You", email = "you@example.com" }]
+
+dependencies = [
+    "cryptography>=41.0.0",
+]
+
+[project.scripts]
+messenger-send    = "messenger.sender.cli:main"
+messenger-receive = "messenger.receiver.cli:main"
+messenger-keygen  = "messenger.crypto.e2e:generate_psk"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["messenger*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

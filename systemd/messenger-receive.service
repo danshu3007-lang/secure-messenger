@@ -1,0 +1,67 @@
+# systemd/messenger-receive.service
+#
+# Installation:
+#   sudo cp systemd/messenger-receive.service /etc/systemd/system/
+#   sudo useradd --system --no-create-home --shell /usr/sbin/nologin messenger
+#   sudo chown -R messenger:messenger /etc/messenger/certs
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now messenger-receive
+#
+# View logs:
+#   sudo journalctl -u messenger-receive -f
+
+[Unit]
+Description=Secure Stateless Messenger Receiver
+Documentation=https://github.com/yourorg/secure-messenger
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=messenger
+Group=messenger
+
+# Main command — change port or add --e2e / --mtls flags as needed
+ExecStart=/usr/bin/messenger-receive 8443
+
+# Graceful reload (re-exec the process)
+ExecReload=/bin/kill -HUP $MAINPID
+
+# ── Sandboxing & hardening ────────────────────────────────────────────────────
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes                  # Isolated /tmp — no temp-file leakage
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes      # Prevents JIT / shellcode injection
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+# Allow read access to certs only
+ReadOnlyPaths=/etc/messenger/certs
+ReadWritePaths=
+
+# ── Logging ───────────────────────────────────────────────────────────────────
+# Logs go to journald (in-memory ring buffer).
+# Message CONTENT is never logged — only connection metadata.
+# WARNING: if you print message content to stdout it WILL appear in journald.
+# The server.py code intentionally prints messages to stdout for the operator.
+# If you want zero-trace: redirect stdout to /dev/null or use --quiet flag.
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=messenger-receive
+
+# ── Restart policy ───────────────────────────────────────────────────────────
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=5
+
+[Install]
+WantedBy=multi-user.target
