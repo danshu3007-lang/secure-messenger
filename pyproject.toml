@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "secure-messenger"
-version = "1.0.0"
+version = "2.0.0"
 description = "Stateless, TLS-secured terminal messenger for Linux"
 requires-python = ">=3.11"
 license = { text = "MIT" }
@@ -15,9 +15,17 @@ dependencies = [
 ]
 
 [project.scripts]
+# Full commands
 messenger-send    = "messenger.sender.cli:main"
 messenger-receive = "messenger.receiver.cli:main"
 messenger-keygen  = "messenger.crypto.e2e:generate_psk"
+
+# Short aliases
+snd  = "messenger.shortcuts.snd:main"
+rcv  = "messenger.shortcuts.rcv:main"
+
+# Two-way chat
+chat = "messenger.chat.cli:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
