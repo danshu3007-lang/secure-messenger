@@ -1,204 +1,175 @@
-# secure-messenger
+# 🔐 secure-messenger
 
-A **stateless, TLS-secured, terminal-based messenger** for Linux.  
-No accounts. No servers. No databases. No message storage.  
-One command to send, one to receive — everything else is discarded.
+> A stateless, TLS 1.3 encrypted, terminal-based messenger for Linux.
+> No accounts. No servers. No databases. No message history. Just secure communication.
 
 ```
-messenger-send 192.168.1.5 "Deploy ready"
+chat 192.168.1.5        ← two-way live chat
+snd  192.168.1.5 "hi"  ← send one message
+rcv                     ← listen for messages
 ```
 
 ---
 
-## Security model
+## What is this?
 
-| Property | How |
-|---|---|
-| Confidentiality | TLS 1.3 (AES-256-GCM / ChaCha20-Poly1305) |
-| Integrity | TLS + optional AES-256-GCM E2E layer |
-| Authentication | Server cert verified against CA; optional mTLS |
-| No storage | Messages are printed once to stdout, then discarded |
-| No logging | Only connection metadata (IP, port) is printed |
-| Forward secrecy | TLS 1.3 ephemeral key exchange |
+secure-messenger lets two people on the same network send encrypted messages
+through their terminal. Every message is protected by TLS 1.3 (the same
+encryption your bank uses). Nothing is ever saved to disk.
 
-**What is NOT protected:** source/destination IPs, connection timing, packet sizes.  
-This tool is suitable for LAN / closed networks. It is not anonymous.
+**Think of it like a walkie-talkie — but encrypted and running in your terminal.**
 
 ---
 
 ## Requirements
 
-- Linux (Ubuntu 22.04+ / Debian 12+)
-- Python 3.11+
-- OpenSSL (for cert generation)
+- Linux (Arch, Ubuntu, Debian, etc.)
+- Python 3.11 or newer
+- OpenSSL (already installed on most Linux systems)
 
 ---
 
 ## Installation
 
-### From .deb package (recommended)
+### Step 1 — Clone the repo
 
 ```bash
-sudo apt install ./messenger_1.0.0_amd64.deb
-```
-
-Or from a private apt repository:
-
-```bash
-echo "deb [trusted=yes] https://your.repo.example.com/apt stable main" \
-  | sudo tee /etc/apt/sources.list.d/messenger.list
-sudo apt update && sudo apt install messenger
-```
-
-### From source (development)
-
-```bash
-git clone https://github.com/yourorg/secure-messenger
+git clone https://github.com/danshu3007-lang/secure-messenger
 cd secure-messenger
-pip install -e ".[dev]"
+```
 
-# Generate test certs
+### Step 2 — Create a virtual environment and install
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install .
+```
+
+> Note: Use `pip install .` not `pip install -e .`
+> Editable installs have a known bug with Python 3.14 + setuptools.
+
+### Step 3 — Generate test certificates
+
+```bash
 bash tests/certs/gen_test_certs.sh
 ```
 
+### Step 4 — Verify it works
+
+```bash
+snd --help
+rcv --help
+chat --help
+```
+
 ---
 
-## Quick start
+## Quick Start — Test on your own machine (2 terminals)
 
-### 1. Generate certificates (first time only)
+**Terminal 1:**
+```bash
+source .venv/bin/activate
+MESSENGER_CERT_DIR=tests/certs chat 127.0.0.1 -lp 8443 -pp 8444
+```
 
-On the **receiver machine**:
+**Terminal 2:**
+```bash
+source .venv/bin/activate
+MESSENGER_CERT_DIR=tests/certs chat 127.0.0.1 -lp 8444 -pp 8443
+```
 
+Type in either terminal and press Enter. Messages appear on the other side instantly.
+
+---
+
+## Commands
+
+### `chat` — Two-way live chat *(new in v2)*
+
+Both people can send and receive at the same time.
+
+```bash
+# Two machines on same network:
+# Machine A:
+chat 192.168.1.10
+
+# Machine B:
+chat 192.168.1.5
+
+# Same machine, two terminals (testing):
+# Terminal 1:
+chat 127.0.0.1 -lp 8443 -pp 8444
+# Terminal 2:
+chat 127.0.0.1 -lp 8444 -pp 8443
+
+# With extra E2E encryption:
+chat 192.168.1.10 --e2e
+```
+
+| Flag | Default | Meaning |
+|---|---|---|
+| `-lp PORT` | 8444 | Port YOU listen on |
+| `-pp PORT` | 8443 | Port your PEER listens on |
+| `--e2e` | off | AES-256-GCM extra encryption |
+
+---
+
+### `snd` — Send one message
+
+```bash
+snd 192.168.1.5 "hello"
+snd 192.168.1.5 "hello" -p 9000
+snd 192.168.1.5 "hello" --e2e
+```
+
+---
+
+### `rcv` — Listen for messages
+
+```bash
+rcv                # listen on port 8443
+rcv 9000           # custom port
+rcv --e2e          # expect encrypted messages
+rcv --local        # localhost only
+rcv --mtls         # require client certificates
+```
+
+---
+
+### `messenger-keygen` — Generate E2E key
+
+```bash
+messenger-keygen
+# Copy the key file to the other machine via USB/QR — never over the network
+```
+
+---
+
+## Using on a real LAN
+
+**Receiver machine:**
 ```bash
 sudo bash certs/gen_certs.sh /etc/messenger/certs 192.168.1.5
+scp /etc/messenger/certs/ca.crt user@192.168.1.10:/etc/messenger/certs/ca.crt
+rcv
 ```
 
-Copy `ca.crt` to all sender machines:
-
+**Sender machine:**
 ```bash
-scp /etc/messenger/certs/ca.crt user@sender-host:/etc/messenger/certs/ca.crt
+snd 192.168.1.5 "Hello!"
+# or two-way:
+chat 192.168.1.5
 ```
-
-### 2. Start the receiver
-
-```bash
-messenger-receive              # Listen on default port 8443
-messenger-receive 9000         # Custom port
-messenger-receive --local      # 127.0.0.1 only
-messenger-receive --mtls       # Require client certificates (mTLS)
-messenger-receive --e2e        # Expect AES-256-GCM encrypted payload
-```
-
-### 3. Send a message
-
-```bash
-messenger-send 192.168.1.5 "Hello, secure world!"
-messenger-send 192.168.1.5 "Secret" --port 9000
-messenger-send 192.168.1.5 "E2E message" --e2e
-```
-
----
-
-## End-to-end encryption (optional layer on top of TLS)
-
-E2E adds AES-256-GCM encryption **inside** the TLS channel.  
-Even if TLS were broken, the payload stays opaque.
-
-**Both sides must share the same 32-byte key.**
-
-```bash
-# On one machine: generate the key
-messenger-keygen
-# Key written to /etc/messenger/certs/e2e.key
-
-# Copy it to the other machine OUT-OF-BAND (never over the network)
-scp /etc/messenger/certs/e2e.key user@receiver-host:/etc/messenger/certs/e2e.key
-
-# Send with E2E:
-messenger-send 192.168.1.5 "Ultra secret" --e2e
-
-# Receive with E2E:
-messenger-receive --e2e
-```
-
----
-
-## Mutual TLS (mTLS)
-
-In mTLS mode the server verifies the client's certificate too.  
-Only clients with a cert signed by your CA can connect.
-
-```bash
-# Generate a client cert (signed by same CA):
-openssl genrsa -out /etc/messenger/certs/client.key 4096
-openssl req -new -key /etc/messenger/certs/client.key \
-    -out /etc/messenger/certs/client.csr \
-    -subj "/CN=messenger-client/O=SecureMessenger/C=IN"
-openssl x509 -req -days 365 \
-    -in /etc/messenger/certs/client.csr \
-    -CA /etc/messenger/certs/ca.crt \
-    -CAkey /etc/messenger/certs/ca.key \
-    -CAcreateserial \
-    -out /etc/messenger/certs/client.crt
-
-# Start receiver in mTLS mode:
-messenger-receive --mtls
-
-# Sender automatically presents its cert if present in MESSENGER_CERT_DIR
-```
-
----
-
-## Run as a systemd service
-
-```bash
-sudo cp systemd/messenger-receive.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now messenger-receive
-
-# View logs (metadata only — not message content if you redirect stdout)
-sudo journalctl -u messenger-receive -f
-```
-
-> **Note:** When running as a systemd service, messages printed to stdout
-> appear in journald. For zero-trace operation, run the receiver
-> interactively in a terminal session instead.
 
 ---
 
 ## Running tests
 
 ```bash
-# Install dev dependencies
-pip install pytest cryptography
-
-# Generate test certs (once)
 bash tests/certs/gen_test_certs.sh
-
-# Run all tests
-MESSENGER_CERT_DIR=tests/certs pytest tests/ -v
-
-# Unit tests only (no certs needed)
-pytest tests/unit/ -v
-
-# Integration tests
-MESSENGER_CERT_DIR=tests/certs pytest tests/integration/ -v
-```
-
----
-
-## Building the .deb package
-
-```bash
-# Install build tools
-sudo apt install python3-pip python3-build ruby ruby-dev rubygems -y
-sudo gem install fpm
-
-# Build
-bash scripts/build_deb.sh
-
-# Install
-sudo apt install ./dist/messenger_1.0.0_amd64.deb
+MESSENGER_CERT_DIR=tests/certs pytest tests/unit/ -v
+# Expected: 23 passed
 ```
 
 ---
@@ -208,52 +179,57 @@ sudo apt install ./dist/messenger_1.0.0_amd64.deb
 ```
 secure-messenger/
 ├── messenger/
-│   ├── common/
-│   │   ├── constants.py      # Ports, limits, cipher list, cert paths
-│   │   ├── exceptions.py     # Custom error types
-│   │   └── serializer.py     # JSON + 4-byte length-prefix wire format
-│   ├── crypto/
-│   │   └── e2e.py            # AES-256-GCM + HKDF key derivation
-│   ├── sender/
-│   │   ├── cli.py            # messenger-send entry point
-│   │   ├── connection.py     # Connect → send → close
-│   │   └── tls_client.py     # TLS 1.3 client context + IP SAN verification
-│   └── receiver/
-│       ├── cli.py            # messenger-receive entry point
-│       ├── server.py         # Accept loop → print → discard
-│       └── tls_server.py     # TLS 1.3 server context + optional mTLS
-├── certs/
-│   ├── gen_certs.sh          # Production cert generation
-│   └── README.md             # PKI & cert management guide
-├── systemd/
-│   └── messenger-receive.service
-├── scripts/
-│   ├── build_deb.sh          # Build the .deb package
-│   └── postinstall.sh        # Runs after apt install
-├── tests/
-│   ├── certs/
-│   │   └── gen_test_certs.sh # Generate test certs for 127.0.0.1
-│   ├── unit/
-│   │   ├── test_serializer.py
-│   │   └── test_e2e_crypto.py
-│   └── integration/
-│       └── test_end_to_end.py
-└── pyproject.toml
+│   ├── common/       ← shared code: constants, exceptions, wire format
+│   ├── crypto/       ← AES-256-GCM end-to-end encryption
+│   ├── sender/       ← messenger-send / snd
+│   ├── receiver/     ← messenger-receive / rcv
+│   ├── shortcuts/    ← short aliases: snd, rcv
+│   └── chat/         ← two-way live chat
+├── certs/            ← certificate generation scripts
+├── systemd/          ← background service unit file
+├── scripts/          ← build and packaging scripts
+├── tests/            ← unit + integration tests
+├── docs/             ← full project documentation
+└── pyproject.toml    ← package definition
 ```
 
 ---
 
-## Limitations & roadmap
+## Security model
 
-| Limitation | Workaround / Future |
+| Property | How |
 |---|---|
-| Direct IP only — fails behind NAT | Add a relay server or STUN/TURN |
-| Source IP visible to network observers | Route through Tor (future) |
-| No message routing / addressing | Add a DHT mesh layer (future) |
-| Pre-shared key exchange is manual | Replace with ECDH over TLS (future) |
+| Confidentiality | TLS 1.3 — AES-256-GCM or ChaCha20 |
+| Integrity | GCM authentication tag — any tampering detected |
+| Forward secrecy | TLS 1.3 ephemeral key exchange |
+| No storage | Messages printed once, never saved |
+| Optional E2E | AES-256-GCM second layer on top of TLS |
+| No weak ciphers | SSLv2/3, TLS 1.0/1.1 all disabled |
+
+**Not protected:** IP addresses, connection timing, packet sizes.
+
+---
+
+## Troubleshooting
+
+| Problem | Fix |
+|---|---|
+| `command not found` | Run `source .venv/bin/activate` |
+| `Connection refused` | Start the receiver BEFORE sending |
+| `Certificate error` | Copy `ca.crt` from receiver to sender |
+| `pip install -e .` fails | Use `pip install .` (no `-e` flag) |
 
 ---
 
 ## License
 
-MIT — see `LICENSE` for details.
+MIT
+
+---
+
+## Version history
+
+| Version | Changes |
+|---|---|
+| v2.0.0 | Two-way `chat` command, short aliases `snd`/`rcv`, Python 3.14 fix |
+| v1.0.0 | Initial release: TLS 1.3, E2E crypto, `messenger-send`/`messenger-receive` |
