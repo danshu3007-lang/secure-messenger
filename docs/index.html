@@ -3,72 +3,697 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>secure-messenger — live demo</title>
+<title>secure-messenger — encrypted terminal chat</title>
 <style>
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Inter:wght@300;400;500;600&display=swap');
+
 *{box-sizing:border-box;margin:0;padding:0}
-body{background:#0d1117;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:'JetBrains Mono','Fira Code',monospace;padding:24px}
-.scene{width:100%;max-width:900px;background:#0d1117;border-radius:14px;border:1px solid #21262d;overflow:hidden;padding:0 0 28px}
-.top-bar{background:#161b22;border-bottom:1px solid #21262d;padding:10px 18px;display:flex;align-items:center;gap:8px}
-.dot{width:11px;height:11px;border-radius:50%}
+
+:root {
+  --bg: #060910;
+  --surface: #0d1117;
+  --surface2: #161b22;
+  --border: #21262d;
+  --border2: #30363d;
+  --text: #e6edf3;
+  --muted: #8b949e;
+  --dim: #484f58;
+  --green: #3fb950;
+  --blue: #58a6ff;
+  --purple: #d2a8ff;
+  --orange: #ffa657;
+  --accent: #1f6feb;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: 'Inter', system-ui, sans-serif;
+  line-height: 1.6;
+  overflow-x: hidden;
+}
+
+/* NAV */
+nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 48px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(6,9,16,0.85);
+  backdrop-filter: blur(12px);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.nav-logo {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--green);
+  letter-spacing: 0.02em;
+}
+.nav-links { display: flex; gap: 28px; }
+.nav-links a {
+  font-size: 13px;
+  color: var(--muted);
+  text-decoration: none;
+  transition: color 0.15s;
+}
+.nav-links a:hover { color: var(--text); }
+.nav-cta {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--green);
+  text-decoration: none;
+  border: 1px solid #2ea043;
+  padding: 6px 16px;
+  border-radius: 6px;
+  transition: background 0.15s;
+  font-family: 'JetBrains Mono', monospace;
+}
+.nav-cta:hover { background: rgba(63,185,80,0.1); }
+
+/* HERO */
+.hero {
+  text-align: center;
+  padding: 96px 24px 80px;
+  position: relative;
+}
+
+.hero-grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(31,111,235,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(31,111,235,0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 80% 60% at 50% 0%, black 20%, transparent 100%);
+}
+
+.hero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--green);
+  border: 1px solid #2ea043;
+  background: rgba(63,185,80,0.06);
+  padding: 4px 14px;
+  border-radius: 20px;
+  letter-spacing: 0.08em;
+  margin-bottom: 28px;
+}
+.badge-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1;transform:scale(1)} 50%{opacity:0.5;transform:scale(0.8)} }
+
+h1 {
+  font-family: 'Inter', sans-serif;
+  font-size: clamp(36px, 6vw, 68px);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.03em;
+  margin-bottom: 20px;
+  color: var(--text);
+}
+h1 span { color: var(--green); }
+
+.hero-sub {
+  font-size: clamp(15px, 2vw, 18px);
+  color: var(--muted);
+  max-width: 520px;
+  margin: 0 auto 36px;
+  line-height: 1.65;
+}
+
+.hero-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+.btn-primary {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  font-weight: 500;
+  background: var(--green);
+  color: #010409;
+  border: none;
+  padding: 10px 24px;
+  border-radius: 6px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+.btn-primary:hover { opacity: 0.88; }
+.btn-secondary {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--text);
+  border: 1px solid var(--border2);
+  background: transparent;
+  padding: 10px 24px;
+  border-radius: 6px;
+  text-decoration: none;
+  transition: background 0.15s;
+}
+.btn-secondary:hover { background: var(--surface2); }
+
+/* QUICK INSTALL */
+.install-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 52px auto 0;
+  max-width: 560px;
+}
+.install-box {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 14px 20px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: var(--muted);
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.install-box .prompt { color: var(--dim); }
+.install-box .cmd { color: var(--text); }
+.copy-btn {
+  margin-left: auto;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  color: var(--muted);
+  font-size: 11px;
+  font-family: 'JetBrains Mono', monospace;
+  padding: 4px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+  flex-shrink: 0;
+}
+.copy-btn:hover { color: var(--text); border-color: var(--border2); }
+
+/* STATS */
+.stats {
+  display: flex;
+  justify-content: center;
+  gap: 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  margin: 72px 0;
+}
+.stat {
+  flex: 1;
+  max-width: 200px;
+  text-align: center;
+  padding: 32px 24px;
+  border-right: 1px solid var(--border);
+}
+.stat:last-child { border-right: none; }
+.stat-num {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+.stat-label { font-size: 12px; color: var(--muted); letter-spacing: 0.04em; }
+
+/* DEMO SECTION */
+.section { padding: 72px 24px; max-width: 1000px; margin: 0 auto; }
+.section-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--green);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+.section-title {
+  font-size: clamp(24px, 4vw, 36px);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  margin-bottom: 12px;
+}
+.section-sub { font-size: 15px; color: var(--muted); margin-bottom: 40px; max-width: 480px; }
+
+/* TERMINAL DEMO */
+.demo-wrap {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.demo-topbar {
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 16px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.dot { width: 11px; height: 11px; border-radius: 50%; }
 .dot-r{background:#ff5f57}.dot-y{background:#febc2e}.dot-g{background:#28c840}
-.top-title{font-size:12px;color:#484f58;margin-left:8px}
-.badge-row{display:flex;gap:8px;justify-content:center;padding:20px 20px 12px}
-.badge{font-size:10px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;padding:3px 12px;border-radius:20px;border:1px solid}
-.badge-tls{color:#58a6ff;border-color:#1f6feb}
-.badge-e2e{color:#3fb950;border-color:#2ea043}
-.badge-zero{color:#d2a8ff;border-color:#8957e5}
-.label-row{display:flex;gap:12px;padding:4px 20px 12px}
-.pane-label{flex:1;font-size:11px;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:#484f58;text-align:center}
-.terminals{display:flex;gap:12px;padding:0 20px}
-.term{flex:1;background:#010409;border-radius:8px;border:1px solid #21262d;overflow:hidden;min-height:340px}
-.term-bar{background:#161b22;border-bottom:1px solid #21262d;padding:8px 12px;display:flex;align-items:center;gap:6px}
-.term-title{font-size:11px;color:#484f58;margin-left:6px}
-.term-body{padding:14px 16px;font-size:12.5px;line-height:1.75;min-height:300px}
-.line{display:block;white-space:pre}
-.prompt{color:#3fb950}.cmd{color:#e6edf3}.info{color:#8b949e}
-.tls{color:#58a6ff}.enc{color:#3fb950}
-.msg-a{color:#ffa657}.msg-b{color:#d2a8ff}
-.cursor{display:inline-block;width:7px;height:13px;background:#3fb950;vertical-align:middle;margin-left:1px;animation:blink 1s step-end infinite}
+.demo-title { font-size: 12px; color: var(--dim); margin-left: 8px; font-family:'JetBrains Mono',monospace; }
+
+.demo-badges {
+  display: flex; gap: 8px; justify-content: center;
+  padding: 16px 20px 10px;
+  background: var(--surface);
+}
+.dbadge {
+  font-size: 10px; font-weight: 700; letter-spacing: .1em;
+  text-transform: uppercase; padding: 3px 12px;
+  border-radius: 20px; border: 1px solid;
+  font-family: 'JetBrains Mono', monospace;
+}
+.dbadge-tls { color: var(--blue); border-color: #1f6feb; }
+.dbadge-e2e { color: var(--green); border-color: #2ea043; }
+.dbadge-zero { color: var(--purple); border-color: #8957e5; }
+
+.demo-labels { display:flex; gap:12px; padding: 4px 20px 10px; }
+.demo-label {
+  flex:1; font-size:11px; font-weight:600; letter-spacing:.09em;
+  text-transform:uppercase; color:var(--dim); text-align:center;
+  font-family:'JetBrains Mono',monospace;
+}
+
+.terminals { display:flex; gap:12px; padding: 0 20px 20px; }
+.term {
+  flex:1; background:#010409; border-radius:8px;
+  border:1px solid var(--border); overflow:hidden; min-height:300px;
+}
+.term-bar {
+  background:var(--surface2); border-bottom:1px solid var(--border);
+  padding:7px 12px; display:flex; align-items:center; gap:6px;
+}
+.term-title { font-size:11px; color:var(--dim); margin-left:6px; font-family:'JetBrains Mono',monospace; }
+.term-body { padding:14px 16px; font-size:12px; line-height:1.75; min-height:260px; font-family:'JetBrains Mono',monospace; }
+.line { display:block; white-space:pre; }
+.tprompt{color:var(--green)}.tcmd{color:var(--text)}.tinfo{color:var(--muted)}
+.ttls{color:var(--blue)}.tenc{color:var(--green)}
+.tmsg-a{color:var(--orange)}.tmsg-b{color:var(--purple)}
+.cursor {
+  display:inline-block; width:7px; height:12px;
+  background:var(--green); vertical-align:middle; margin-left:1px;
+  animation:blink 1s step-end infinite;
+}
 @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
-.ctrl{display:flex;gap:8px;justify-content:center;padding:18px 20px 0}
-.ctrl button{background:#21262d;color:#e6edf3;border:1px solid #30363d;border-radius:6px;padding:6px 18px;font-size:12px;font-family:monospace;cursor:pointer}
-.ctrl button:hover{background:#30363d}
-@media(max-width:600px){.terminals{flex-direction:column}}
+.demo-ctrl {
+  display:flex; gap:8px; justify-content:center;
+  padding: 0 20px 20px;
+}
+.demo-ctrl button {
+  background:var(--surface2); color:var(--muted);
+  border:1px solid var(--border2); border-radius:6px;
+  padding:6px 20px; font-size:12px; font-family:'JetBrains Mono',monospace;
+  cursor:pointer; transition: all 0.15s;
+}
+.demo-ctrl button:hover { color: var(--text); border-color: #484f58; }
+
+/* FEATURES */
+.features { padding: 72px 24px; background: var(--surface); border-top: 1px solid var(--border); border-bottom: 1px solid var(--border); }
+.features-inner { max-width: 1000px; margin: 0 auto; }
+.features-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 1px;
+  background: var(--border);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 40px;
+}
+.feat-card {
+  background: var(--surface);
+  padding: 28px 28px;
+}
+.feat-icon {
+  width: 36px; height: 36px;
+  border-radius: 8px;
+  border: 1px solid var(--border2);
+  display: flex; align-items: center; justify-content: center;
+  margin-bottom: 16px;
+  font-size: 16px;
+}
+.feat-title { font-size: 15px; font-weight: 600; margin-bottom: 8px; color: var(--text); }
+.feat-desc { font-size: 13px; color: var(--muted); line-height: 1.6; }
+.feat-tag {
+  display: inline-block; margin-top: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 2px 8px; border-radius: 4px;
+}
+.tag-tls { background: rgba(88,166,255,0.1); color: var(--blue); }
+.tag-e2e { background: rgba(63,185,80,0.1); color: var(--green); }
+.tag-zero { background: rgba(210,168,255,0.1); color: var(--purple); }
+.tag-fast { background: rgba(255,166,87,0.1); color: var(--orange); }
+
+/* INSTALL SECTION */
+.install-section { padding: 72px 24px; max-width: 760px; margin: 0 auto; }
+.code-block {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+.code-header {
+  background: var(--surface2);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 16px;
+  display: flex; align-items: center; justify-content: space-between;
+}
+.code-lang { font-size: 11px; color: var(--dim); font-family: 'JetBrains Mono', monospace; }
+.code-copy {
+  font-size: 11px; color: var(--muted);
+  background: none; border: none; cursor: pointer;
+  font-family: 'JetBrains Mono', monospace;
+  transition: color 0.15s;
+}
+.code-copy:hover { color: var(--text); }
+.code-body {
+  padding: 18px 20px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  line-height: 1.75;
+  color: var(--muted);
+}
+.code-body .c-prompt { color: var(--dim); }
+.code-body .c-cmd { color: var(--text); }
+.code-body .c-comment { color: var(--dim); font-style: italic; }
+.code-body .c-green { color: var(--green); }
+.code-body .c-blue { color: var(--blue); }
+
+/* SECURITY */
+.security-section { padding: 72px 24px; max-width: 1000px; margin: 0 auto; }
+.security-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 40px;
+  font-size: 14px;
+}
+.security-table th {
+  text-align: left; padding: 10px 20px;
+  font-size: 11px; font-weight: 600;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--dim);
+  border-bottom: 1px solid var(--border);
+  font-family: 'JetBrains Mono', monospace;
+}
+.security-table td {
+  padding: 14px 20px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+}
+.security-table tr:last-child td { border-bottom: none; }
+.security-table tr:hover td { background: rgba(255,255,255,0.02); }
+.prop-name { font-weight: 500; color: var(--text); }
+.prop-how { color: var(--muted); }
+.prop-badge {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 11px; font-weight: 500;
+  color: var(--green);
+  background: rgba(63,185,80,0.08);
+  border: 1px solid rgba(63,185,80,0.2);
+  padding: 2px 10px; border-radius: 12px;
+}
+.prop-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--green); }
+
+/* FOOTER */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 40px 48px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+.footer-logo {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px; font-weight: 500;
+  color: var(--green);
+}
+.footer-links { display: flex; gap: 24px; }
+.footer-links a { font-size: 13px; color: var(--muted); text-decoration: none; }
+.footer-links a:hover { color: var(--text); }
+.footer-copy { font-size: 12px; color: var(--dim); }
+
+@media(max-width:640px){
+  nav{padding:14px 20px}
+  .nav-links{display:none}
+  .hero{padding:60px 20px 48px}
+  .stats{flex-wrap:wrap}
+  .stat{min-width:50%}
+  .terminals{flex-direction:column}
+  footer{padding:28px 20px;flex-direction:column;text-align:center}
+}
 </style>
 </head>
 <body>
-<div class="scene">
-  <div class="top-bar">
-    <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
-    <span class="top-title">secure-messenger — cinematic demo</span>
+
+<nav>
+  <span class="nav-logo">&#x1F512; secure-messenger</span>
+  <div class="nav-links">
+    <a href="#demo">Demo</a>
+    <a href="#features">Features</a>
+    <a href="#install">Install</a>
+    <a href="#security">Security</a>
   </div>
-  <div class="badge-row">
-    <span class="badge badge-tls">TLS 1.3</span>
-    <span class="badge badge-e2e">AES-256-GCM</span>
-    <span class="badge badge-zero">zero persistence</span>
+  <a class="nav-cta" href="https://github.com/danshu3007-lang/secure-messenger">GitHub &rarr;</a>
+</nav>
+
+<section class="hero">
+  <div class="hero-grid"></div>
+  <div class="hero-badge"><span class="badge-dot"></span>v2.0.0 &mdash; TLS 1.3 + AES-256-GCM</div>
+  <h1>Encrypted terminal chat.<br><span>No servers. No logs.</span></h1>
+  <p class="hero-sub">
+    Send messages directly between Linux machines over a double-encrypted connection.
+    Nothing touches a server. Nothing is ever written to disk.
+  </p>
+  <div class="hero-buttons">
+    <a class="btn-primary" href="#install">Get started</a>
+    <a class="btn-secondary" href="https://github.com/danshu3007-lang/secure-messenger">View on GitHub</a>
   </div>
-  <div class="label-row">
-    <div class="pane-label">machine A — 192.168.1.5</div>
-    <div class="pane-label">machine B — 192.168.1.10</div>
-  </div>
-  <div class="terminals">
-    <div class="term">
-      <div class="term-bar">
-        <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
-        <span class="term-title">bash — machine A</span>
-      </div>
-      <div class="term-body" id="bodyA"></div>
+  <div class="install-strip">
+    <div class="install-box">
+      <span class="prompt">$</span>
+      <span class="cmd">pip install . &amp;&amp; chat 192.168.1.x</span>
+      <button class="copy-btn" onclick="navigator.clipboard.writeText('pip install . && chat 192.168.1.x');this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button>
     </div>
-    <div class="term">
-      <div class="term-bar">
-        <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
-        <span class="term-title">bash — machine B</span>
-      </div>
-      <div class="term-body" id="bodyB"></div>
-    </div>
   </div>
-  <div class="ctrl"><button id="replayBtn">replay</button></div>
+</section>
+
+<div class="stats">
+  <div class="stat">
+    <div class="stat-num">TLS 1.3</div>
+    <div class="stat-label">transport layer</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num">AES-256</div>
+    <div class="stat-label">end-to-end layer</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num">23</div>
+    <div class="stat-label">unit tests</div>
+  </div>
+  <div class="stat">
+    <div class="stat-num">0</div>
+    <div class="stat-label">bytes stored</div>
+  </div>
 </div>
+
+<section class="section" id="demo">
+  <div class="section-label">live demo</div>
+  <h2 class="section-title">Watch it in action</h2>
+  <p class="section-sub">Two machines. One encrypted channel. Real-time. Nothing saved.</p>
+
+  <div class="demo-wrap">
+    <div class="demo-topbar">
+      <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
+      <span class="demo-title">secure-messenger &mdash; two-terminal session</span>
+    </div>
+    <div class="demo-badges">
+      <span class="dbadge dbadge-tls">TLS 1.3</span>
+      <span class="dbadge dbadge-e2e">AES-256-GCM</span>
+      <span class="dbadge dbadge-zero">zero persistence</span>
+    </div>
+    <div class="demo-labels">
+      <div class="demo-label">machine A &mdash; 192.168.1.5</div>
+      <div class="demo-label">machine B &mdash; 192.168.1.10</div>
+    </div>
+    <div class="terminals">
+      <div class="term">
+        <div class="term-bar">
+          <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
+          <span class="term-title">bash &mdash; machine A</span>
+        </div>
+        <div class="term-body" id="bodyA"></div>
+      </div>
+      <div class="term">
+        <div class="term-bar">
+          <span class="dot dot-r"></span><span class="dot dot-y"></span><span class="dot dot-g"></span>
+          <span class="term-title">bash &mdash; machine B</span>
+        </div>
+        <div class="term-body" id="bodyB"></div>
+      </div>
+    </div>
+    <div class="demo-ctrl"><button id="replayBtn">&#x21BA; replay</button></div>
+  </div>
+</section>
+
+<section class="features" id="features">
+  <div class="features-inner">
+    <div class="section-label">features</div>
+    <h2 class="section-title">Built for security. Made for the terminal.</h2>
+    <div class="features-grid">
+      <div class="feat-card">
+        <div class="feat-icon">&#x1F512;</div>
+        <div class="feat-title">TLS 1.3 transport</div>
+        <div class="feat-desc">Every connection uses AES-256-GCM or ChaCha20. No weak ciphers. SSLv2/3 and TLS 1.0/1.1 are disabled.</div>
+        <span class="feat-tag tag-tls">TLS 1.3</span>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">&#x1F510;</div>
+        <div class="feat-title">Optional E2E layer</div>
+        <div class="feat-desc">Add a second AES-256-GCM encryption layer on top of TLS with <code>--e2e</code>. Double-wrapped by default.</div>
+        <span class="feat-tag tag-e2e">AES-256-GCM</span>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">&#x1F4AC;</div>
+        <div class="feat-title">Two-way live chat</div>
+        <div class="feat-desc">Full-duplex real-time chat with the <code>chat</code> command. Both sides send and receive simultaneously.</div>
+        <span class="feat-tag tag-fast">full-duplex</span>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">&#x1F9F9;</div>
+        <div class="feat-title">Zero persistence</div>
+        <div class="feat-desc">Messages are printed once and never written to disk. No logs. No database. Nothing left behind.</div>
+        <span class="feat-tag tag-zero">stateless</span>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">&#x26A1;</div>
+        <div class="feat-title">Fire-and-forget</div>
+        <div class="feat-desc">Send a single message and disconnect with <code>snd</code>. Receive and print with <code>rcv</code>. Simple and composable.</div>
+        <span class="feat-tag tag-fast">lightweight</span>
+      </div>
+      <div class="feat-card">
+        <div class="feat-icon">&#x1F427;</div>
+        <div class="feat-title">Linux native</div>
+        <div class="feat-desc">Systemd service unit included. Run <code>rcv</code> as a background daemon on any Arch, Debian, or Ubuntu system.</div>
+        <span class="feat-tag tag-tls">systemd</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="install-section" id="install">
+  <div class="section-label">installation</div>
+  <h2 class="section-title">Up in 5 minutes</h2>
+  <p class="section-sub" style="margin-bottom:32px">Requires Python 3.11+ and OpenSSL (pre-installed on most Linux systems).</p>
+
+  <div class="code-block">
+    <div class="code-header">
+      <span class="code-lang">bash</span>
+      <button class="code-copy" onclick="navigator.clipboard.writeText('git clone https://github.com/danshu3007-lang/secure-messenger\ncd secure-messenger\npython3 -m venv .venv && source .venv/bin/activate\npip install .\nbash tests/certs/gen_test_certs.sh');this.textContent='copied!';setTimeout(()=>this.textContent='copy',1500)">copy</button>
+    </div>
+    <div class="code-body">
+      <span class="line"><span class="c-comment"># 1. clone</span></span>
+      <span class="line"><span class="c-prompt">$</span> <span class="c-cmd">git clone https://github.com/danshu3007-lang/secure-messenger</span></span>
+      <span class="line"><span class="c-prompt">$</span> <span class="c-cmd">cd secure-messenger</span></span>
+      <span class="line"> </span>
+      <span class="line"><span class="c-comment"># 2. install</span></span>
+      <span class="line"><span class="c-prompt">$</span> <span class="c-cmd">python3 -m venv .venv &amp;&amp; source .venv/bin/activate</span></span>
+      <span class="line"><span class="c-prompt">$</span> <span class="c-cmd">pip install .</span></span>
+      <span class="line"> </span>
+      <span class="line"><span class="c-comment"># 3. generate test certificates</span></span>
+      <span class="line"><span class="c-prompt">$</span> <span class="c-cmd">bash tests/certs/gen_test_certs.sh</span></span>
+    </div>
+  </div>
+
+  <div class="code-block">
+    <div class="code-header">
+      <span class="code-lang">bash &mdash; test on one machine (2 terminals)</span>
+    </div>
+    <div class="code-body">
+      <span class="line"><span class="c-comment"># terminal 1</span></span>
+      <span class="line"><span class="c-prompt">$</span> <span class="c-cmd">MESSENGER_CERT_DIR=tests/certs chat 127.0.0.1 -lp 8443 -pp 8444</span></span>
+      <span class="line"> </span>
+      <span class="line"><span class="c-comment"># terminal 2</span></span>
+      <span class="line"><span class="c-prompt">$</span> <span class="c-cmd">MESSENGER_CERT_DIR=tests/certs chat 127.0.0.1 -lp 8444 -pp 8443</span></span>
+    </div>
+  </div>
+</section>
+
+<section class="security-section" id="security">
+  <div class="section-label">security model</div>
+  <h2 class="section-title">What is and isn&rsquo;t protected</h2>
+  <table class="security-table">
+    <thead>
+      <tr>
+        <th>property</th>
+        <th>implementation</th>
+        <th>status</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="prop-name">Confidentiality</td>
+        <td class="prop-how">TLS 1.3 &mdash; AES-256-GCM or ChaCha20-Poly1305</td>
+        <td><span class="prop-badge"><span class="prop-dot"></span>protected</span></td>
+      </tr>
+      <tr>
+        <td class="prop-name">Integrity</td>
+        <td class="prop-how">GCM authentication tag &mdash; tampering is detected and rejected</td>
+        <td><span class="prop-badge"><span class="prop-dot"></span>protected</span></td>
+      </tr>
+      <tr>
+        <td class="prop-name">Forward secrecy</td>
+        <td class="prop-how">TLS 1.3 ephemeral key exchange per session</td>
+        <td><span class="prop-badge"><span class="prop-dot"></span>protected</span></td>
+      </tr>
+      <tr>
+        <td class="prop-name">Message storage</td>
+        <td class="prop-how">Messages printed once &mdash; never written to disk</td>
+        <td><span class="prop-badge"><span class="prop-dot"></span>zero persistence</span></td>
+      </tr>
+      <tr>
+        <td class="prop-name">IP / metadata</td>
+        <td class="prop-how">IP addresses, connection timing, and packet sizes are visible on the network</td>
+        <td style="color:#484f58;font-size:13px">not protected</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<footer>
+  <span class="footer-logo">&#x1F512; secure-messenger</span>
+  <div class="footer-links">
+    <a href="https://github.com/danshu3007-lang/secure-messenger">GitHub</a>
+    <a href="https://github.com/danshu3007-lang/secure-messenger/blob/main/README.md">Docs</a>
+    <a href="https://github.com/danshu3007-lang/secure-messenger/blob/main/LICENSE">MIT License</a>
+  </div>
+  <span class="footer-copy">Built by danshu3007-lang</span>
+</footer>
+
 <script>
 const A=document.getElementById('bodyA'),B=document.getElementById('bodyB');
 function span(cls,text){const s=document.createElement('span');s.className='line '+cls;s.textContent=text;return s}
@@ -77,46 +702,46 @@ function appendB(cls,text){B.appendChild(span(cls,text))}
 function wait(ms){return new Promise(r=>setTimeout(r,ms))}
 let cursorEl=null;
 function addCursor(parent){if(cursorEl)cursorEl.remove();cursorEl=document.createElement('span');cursorEl.className='cursor';parent.appendChild(cursorEl)}
-async function typeInto(el,text,cls,delay=38){if(cursorEl)cursorEl.remove();const s=document.createElement('span');s.className='line '+cls;el.appendChild(s);for(const ch of text){s.textContent+=ch;await wait(delay+Math.random()*20)}addCursor(el);return s}
+async function typeInto(el,text,cls,delay=36){if(cursorEl)cursorEl.remove();const s=document.createElement('span');s.className='line '+cls;el.appendChild(s);for(const ch of text){s.textContent+=ch;await wait(delay+Math.random()*18)}addCursor(el);return s}
 async function run(){
   A.innerHTML='';B.innerHTML='';if(cursorEl){cursorEl.remove();cursorEl=null}
   await wait(400);
-  appendA('prompt','(.venv) derock@arch ~/secure-messenger');
-  await wait(200);await typeInto(A,'$ source .venv/bin/activate','cmd');await wait(500);
-  appendB('prompt','(.venv) derock@arch ~/secure-messenger');
-  await wait(150);await typeInto(B,'$ source .venv/bin/activate','cmd');await wait(700);
-  appendA('info','');
-  await typeInto(A,'$ MESSENGER_CERT_DIR=tests/certs \\','cmd',32);await wait(120);
-  await typeInto(A,'  chat 192.168.1.10 -lp 8443 -pp 8444','cmd',32);await wait(900);
-  appendA('tls','[tls]  handshake complete — TLS 1.3, AES-256-GCM');
-  appendA('enc', '[ok]   listening on :8443');
-  appendA('info','[*]    waiting for peer...');await wait(1000);
-  appendB('info','');
-  await typeInto(B,'$ MESSENGER_CERT_DIR=tests/certs \\','cmd',32);await wait(120);
-  await typeInto(B,'  chat 192.168.1.5 -lp 8444 -pp 8443','cmd',32);await wait(900);
-  appendB('tls','[tls]  handshake complete — TLS 1.3, AES-256-GCM');
-  appendB('enc', '[ok]   connected to 192.168.1.5:8443');
-  appendB('info','[*]    session ready. type to chat.');await wait(600);
-  appendA('enc', '[ok]   peer connected. session ready.');await wait(1000);
-  appendA('info','');
-  await typeInto(A,'hey — you on the LAN?','msg-a',45);await wait(400);appendA('msg-a','');
-  await wait(700);appendB('msg-a','  [192.168.1.5]  hey — you on the LAN?');await wait(900);
-  appendB('info','');
-  await typeInto(B,'yeah. end-to-end encrypted too?','msg-b',42);await wait(400);appendB('msg-b','');
-  await wait(700);appendA('msg-b','  [192.168.1.10] yeah. end-to-end encrypted too?');await wait(800);
-  appendA('info','');
-  await typeInto(A,'double-layered. TLS + AES-256.','msg-a',42);await wait(400);appendA('msg-a','');
-  await wait(700);appendB('msg-a','  [192.168.1.5]  double-layered. TLS + AES-256.');await wait(900);
-  appendB('info','');
-  await typeInto(B,'nothing saved to disk?','msg-b',45);await wait(400);appendB('msg-b','');
-  await wait(700);appendA('msg-b','  [192.168.1.10] nothing saved to disk?');await wait(800);
-  appendA('info','');
-  await typeInto(A,'zero persistence. gone when you close.','msg-a',40);await wait(400);appendA('msg-a','');
-  await wait(700);appendB('msg-a','  [192.168.1.5]  zero persistence. gone when you close.');await wait(1200);
-  appendB('info','');
-  await typeInto(B,'^C','info',80);
-  appendB('enc','[bye]  session closed. no logs written.');await wait(600);
-  appendA('enc','[bye]  peer disconnected. session closed.');
+  appendA('tprompt','(.venv) derock@arch ~/secure-messenger');
+  await wait(180);await typeInto(A,'$ source .venv/bin/activate','tcmd');await wait(500);
+  appendB('tprompt','(.venv) derock@arch ~/secure-messenger');
+  await wait(140);await typeInto(B,'$ source .venv/bin/activate','tcmd');await wait(700);
+  appendA('tinfo','');
+  await typeInto(A,'$ MESSENGER_CERT_DIR=tests/certs \\','tcmd',30);await wait(100);
+  await typeInto(A,'  chat 192.168.1.10 -lp 8443 -pp 8444','tcmd',30);await wait(850);
+  appendA('ttls','[tls]  handshake — TLS 1.3, AES-256-GCM');
+  appendA('tenc', '[ok]   listening on :8443');
+  appendA('tinfo','[*]    waiting for peer...');await wait(950);
+  appendB('tinfo','');
+  await typeInto(B,'$ MESSENGER_CERT_DIR=tests/certs \\','tcmd',30);await wait(100);
+  await typeInto(B,'  chat 192.168.1.5 -lp 8444 -pp 8443','tcmd',30);await wait(850);
+  appendB('ttls','[tls]  handshake — TLS 1.3, AES-256-GCM');
+  appendB('tenc', '[ok]   connected to 192.168.1.5:8443');
+  appendB('tinfo','[*]    session ready. type to chat.');await wait(550);
+  appendA('tenc', '[ok]   peer connected. session ready.');await wait(950);
+  appendA('tinfo','');
+  await typeInto(A,'hey — you on the LAN?','tmsg-a',44);await wait(380);appendA('tmsg-a','');
+  await wait(680);appendB('tmsg-a','  [192.168.1.5]  hey — you on the LAN?');await wait(860);
+  appendB('tinfo','');
+  await typeInto(B,'yeah. end-to-end encrypted too?','tmsg-b',40);await wait(380);appendB('tmsg-b','');
+  await wait(680);appendA('tmsg-b','  [192.168.1.10] yeah. end-to-end encrypted too?');await wait(800);
+  appendA('tinfo','');
+  await typeInto(A,'double-layered. TLS + AES-256.','tmsg-a',40);await wait(380);appendA('tmsg-a','');
+  await wait(680);appendB('tmsg-a','  [192.168.1.5]  double-layered. TLS + AES-256.');await wait(860);
+  appendB('tinfo','');
+  await typeInto(B,'nothing saved to disk?','tmsg-b',44);await wait(380);appendB('tmsg-b','');
+  await wait(680);appendA('tmsg-b','  [192.168.1.10] nothing saved to disk?');await wait(800);
+  appendA('tinfo','');
+  await typeInto(A,'zero persistence. gone when you close.','tmsg-a',38);await wait(380);appendA('tmsg-a','');
+  await wait(680);appendB('tmsg-a','  [192.168.1.5]  zero persistence. gone when you close.');await wait(1100);
+  appendB('tinfo','');
+  await typeInto(B,'^C','tinfo',75);
+  appendB('tenc','[bye]  session closed. no logs written.');await wait(550);
+  appendA('tenc','[bye]  peer disconnected. session closed.');
   if(cursorEl)cursorEl.remove();
 }
 document.getElementById('replayBtn').addEventListener('click',run);
