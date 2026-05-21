@@ -1,191 +1,226 @@
-# 🧠 Jarvis v2 — Self-Modifying AI Agent
+# secure-messenger
 
-[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/danshu3007-lang/jarvis-v2/blob/main/notebooks/jarvis_v2_colab.ipynb)
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
-[![HuggingFace Space](https://img.shields.io/badge/🤗%20HuggingFace-Space-orange)](https://huggingface.co/spaces/danshu3007-lang/jarvis-v2)
-
-> An AI agent that **rewrites its own code** when it fails — not metaphorically, literally.
-> Runs free on Google Colab T4 GPU.
+Send encrypted text messages between two Linux computers on the same network.
+No accounts. No internet required. Nothing is saved anywhere.
 
 ---
 
-## What Makes This Different
+## What this actually does
 
-Most AI agents have fixed tools. When a tool breaks, they return an error and move on.
+You run one command on Computer A to listen. You run one command on Computer B
+to send. The message travels encrypted. It appears on Computer A's screen.
+Then it's gone — not saved, not logged, not stored anywhere.
 
-Jarvis v2 does something different: when a domain handler fails repeatedly, the **AI Mind** reads the failure logs, asks the LLM to write a better version of its own handler code, A/B tests the patch on historical episodes, and hot-swaps it live — all without human intervention.
+That's it. That's the whole thing.
 
 ```
-User message
-    │
-    ▼
-detect_domain()       ← research / coding / os_control
-    │
-    ▼
-run_handler()         ← exec() the current domain handler
-    │
-    ▼
-Tools.*               ← DuckDuckGo / Python sandbox / safe shell
-    │
-    ▼  (after 👍/👎 feedback)
-AIMind.log()          ← stores episode in ChromaDB vector memory
-    │
-    ▼  (every 30 episodes)
-AIMind.cycle()
-    ├── read failures from memory
-    ├── LLM writes new handler code
-    ├── A/B test: old vs new on last 10 episodes
-    └── hot-swap if Δreward > 5%
+Computer B                          Computer A
+────────────────────────────────────────────────────
+messenger-send 192.168.1.5 "hello"  messenger-receive
+                                    
+                                    ┌─ MESSAGE ──────
+                                    │  hello
+                                    └────────────────
 ```
 
 ---
 
-## Key Features
+## What it is good for
 
-**Self-modifying reflexion loop** — inspired by the [Reflexion paper (Shinn et al. 2023)](https://arxiv.org/abs/2303.11366), applied to *code* rather than text. Every accepted patch is versioned and stored.
+- Sending a quick alert from one server to another on your home or office network
+- Notifying yourself when a script finishes running
+- Private messages between two computers you own and control
+- Learning how TLS encryption and sockets work by reading clean Python code
 
-**Quantum VQC reward head** — replaces the standard linear reward head with a Variational Quantum Circuit. The circuit auto-grows (adds entanglement layers) when loss plateaus, preventing reward stagnation without manual tuning.
+## What it is NOT good for
 
-**Three live domains** — each with its own handler, reward history, and independent patching loop:
-- 🔬 **Research** — DuckDuckGo web search
-- 💻 **Coding** — Python execution in a subprocess sandbox
-- 🖥️ **OS Control** — safe read-only shell commands (allowlisted)
-
-**ChromaDB episodic memory** — every interaction is stored as a vector with prompt, response, reward, domain, and version. Failures are retrieved by semantic similarity for the patch prompt.
-
-**PPO training scaffold** — policy model wrapped with `AutoModelForCausalLMWithValueHead` via `trl`, ready for full RLHF loop.
-
-**Gradio UI** — chat interface with 👍/👎 feedback buttons that feed directly into the reflexion cycle.
+- Chatting with friends over the internet — use Signal for that
+- Group messaging — this is one sender, one receiver only
+- Hiding who is talking to whom — IP addresses are still visible
+- Replacing WhatsApp, Telegram, or any normal chat app
 
 ---
 
-## Architecture
+## How the encryption works — in plain words
 
-```
-jarvis/
-├── config.py           ← all hyperparameters in one place
-├── quantum_reward.py   ← VQC reward head (auto-evolves on plateau)
-├── tools.py            ← sandboxed domain tools
-├── mind.py             ← AIMind: memory + routing + self-modification
-├── models.py           ← model loading (Mistral-7B + Phi-3-mini, 4-bit)
-├── agent.py            ← JarvisAgent: high-level chat API
-└── ui.py               ← Gradio frontend
-```
+Every message is protected by two layers:
 
-**Models used:**
-- Policy: `mistral-7b-instruct-v0.2` — 4-bit quantised via Unsloth + LoRA (rank 16)
-- Reward: `phi-3-mini-4k-instruct` — 4-bit quantised + EvolvingQuantumReward head
+**Layer 1 — TLS 1.3** (always on)
+This is the same encryption your bank uses. The message is scrambled before
+it leaves Computer B and only Computer A can unscramble it. Nobody on the
+network in between can read it.
 
-**Memory schema (ChromaDB):**
-```json
-{
-  "document": "<user prompt>",
-  "metadata": { "response": "...", "reward": 1.0, "domain": "coding", "version": 3 }
-}
-```
+**Layer 2 — AES-256-GCM** (optional, use `--e2e`)
+A second scramble on top of the first, using a secret key that only you have.
+Even if someone broke TLS (extremely unlikely), they still cannot read the message.
+
+**What encryption does NOT protect:**
+- An attacker can still see that Computer B sent something to Computer A
+- They can see the approximate size and timing of messages
+- They cannot read the content
 
 ---
 
-## Quickstart — Google Colab (free T4 GPU)
-
-**No local setup needed.** Click the badge at the top or:
-
-1. Open the [Colab notebook](https://colab.research.google.com/github/danshu3007-lang/jarvis-v2/blob/main/notebooks/jarvis_v2_colab.ipynb)
-2. `Runtime → Change runtime type → T4 GPU`
-3. Run **Step 1** (install) — restart runtime if prompted
-4. Run **Steps 2–8** in order
-5. A Gradio link appears — open it and start chatting
-
-First boot downloads ~8 GB of models and takes ~6 minutes.
-
----
-
-## Local Setup
+## Install
 
 ```bash
-git clone https://github.com/danshu3007-lang/jarvis-v2.git
-cd jarvis-v2
-pip install -e ".[dev]"
-
-# Install Unsloth separately (requires CUDA)
-pip install "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
-
-# Run
-python -m jarvis.main
+git clone https://github.com/yourname/secure-messenger
+cd secure-messenger
+pip install -e .
 ```
 
-Requirements: Python 3.10+, CUDA GPU (8 GB+ VRAM recommended), CUDA toolkit.
+Check it worked:
+```bash
+messenger-send --help
+messenger-receive --help
+```
 
 ---
 
-## Tech Stack
+## First-time setup — certificates
 
-| Layer | Technology |
+Before using it for the first time, you need to generate certificates.
+These prove to the sender that they are talking to the right computer.
+
+On the **receiving computer**, run this once:
+```bash
+sudo bash certs/gen_certs.sh /etc/messenger/certs YOUR_IP_ADDRESS
+```
+
+Replace `YOUR_IP_ADDRESS` with the actual IP of your receiving computer.
+To find your IP, run: `ip addr | grep 192`
+
+Then copy the CA certificate to the **sending computer**:
+```bash
+scp /etc/messenger/certs/ca.crt youruser@SENDER_IP:/etc/messenger/certs/ca.crt
+```
+
+You only do this once.
+
+---
+
+## Basic usage — two computers, same network
+
+**On Computer A (the receiver) — run this first:**
+```bash
+messenger-receive
+```
+
+You will see:
+```
+[*] Listening on 0.0.0.0:8443  [TLS only]
+[*] Press Ctrl+C to stop.
+```
+
+**On Computer B (the sender):**
+```bash
+messenger-send 192.168.1.5 "hello from computer B"
+```
+
+Replace `192.168.1.5` with the actual IP of Computer A.
+
+You will see on Computer B:
+```
+[✓] Message sent securely to 192.168.1.5:8443
+```
+
+And on Computer A:
+```
+[+] Connection from 192.168.1.5:54321
+┌─ MESSAGE from 192.168.1.5 ─────
+│  hello from computer B
+└────────────────────────────────
+```
+
+---
+
+## Optional: double encryption with --e2e
+
+This adds a second layer of encryption on top of TLS using a key only you have.
+
+**Step 1 — Generate a shared key on one computer:**
+```bash
+messenger-keygen
+```
+
+This creates `/etc/messenger/certs/e2e.key`
+
+**Step 2 — Copy it to the other computer:**
+```bash
+scp /etc/messenger/certs/e2e.key youruser@OTHER_IP:/etc/messenger/certs/e2e.key
+```
+
+**Step 3 — Use --e2e on both sides:**
+```bash
+# Receiver
+messenger-receive --e2e
+
+# Sender
+messenger-send 192.168.1.5 "secret message" --e2e
+```
+
+**Important:** Both sides must use `--e2e` or neither side should. Mixing them
+causes a decryption error.
+
+---
+
+## Optional: only allow known senders with --mtls
+
+Without `--mtls`, anyone on your network who has your CA certificate can
+send you a message. With `--mtls`, only senders with a certificate you
+personally signed can connect.
+
+```bash
+# Start receiver — only accept known senders
+messenger-receive --mtls
+```
+
+See `certs/README.md` for how to create client certificates.
+
+---
+
+## Run on a custom port
+
+Default port is 8443. Change it like this:
+
+```bash
+messenger-receive 9000
+messenger-send 192.168.1.5 "hello" --port 9000
+```
+
+---
+
+## Honest limitations
+
+| What doesn't work | Why |
 |---|---|
-| LLM backbone | Mistral-7B-Instruct, Phi-3-mini |
-| Quantisation | 4-bit NF4 via Unsloth + bitsandbytes |
-| Fine-tuning | LoRA (PEFT), PPO (TRL) |
-| Quantum | Qiskit, Qiskit-Aer (VQC simulator) |
-| Vector memory | ChromaDB (ephemeral) |
-| Web search | DuckDuckGo Search API |
-| UI | Gradio 4.x |
-| Orchestration | Pure Python (no LangChain) |
+| Internet / public network use | Designed for LAN only, no NAT traversal |
+| Hiding who talks to whom | IP addresses are always visible |
+| If key file is stolen | Past messages can be decrypted (PSK limitation) |
+| Multiple receivers | One sender → one receiver only |
+| Works on Windows or Mac | Linux only |
+| Automatic key rotation | Manual only |
 
 ---
 
-## Self-Modification Safety
-
-The reflexion loop has two hard guards:
-
-1. **Sandboxed exec** — patched handler code runs in a fresh `exec()` namespace. It cannot access or modify `AIMind` internals directly. Only `Tools`, `llm`, `re`, and `np` are in scope.
-2. **A/B gate** — a patch is only accepted if the mean reward over the last 10 historical episodes improves by more than `PATCH_THRESHOLD` (default 5%). Patches that don't improve things are silently discarded.
-
-OS commands are restricted to a fixed allowlist: `ls, pwd, date, echo, cat, head, tail, wc`.
-
----
-
-## Project Structure
-
-```
-jarvis-v2/
-├── jarvis/             ← core package
-├── notebooks/          ← Colab notebook
-├── tests/              ← pytest suite (CPU-safe, no GPU required)
-├── scripts/            ← nightly autonomous training loop
-├── docs/               ← architecture, quantum reward, self-modification docs
-├── docker/             ← Dockerfile for containerised deployment
-└── assets/             ← banner, diagrams
-```
-
----
-
-## Running Tests
+## Running tests
 
 ```bash
-pytest tests/ -v
+pip install pytest
+bash tests/certs/gen_test_certs.sh
+MESSENGER_CERT_DIR=tests/certs pytest tests/ -v
 ```
 
-Tests are CPU-safe — no GPU or model download required. They cover domain detection, memory logging, patch proposal/rejection, quantum circuit evolution, and all three tools.
-
 ---
 
-## Roadmap
+## Requirements
 
-- [ ] Connect VQC to real IBM quantum hardware via `qiskit-ibm-runtime`
-- [ ] Replace proxy A/B reward with full VQC reward model scoring
-- [ ] Persistent ChromaDB (disk-backed) for cross-session memory
-- [ ] Add `sql_query` and `web_scraping` domains
-- [ ] Multi-agent: separate Jarvis instances collaborating via shared memory
-
----
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md). The most impactful contribution is adding a new domain — the checklist is in the guide.
+- Linux (Ubuntu 22.04+ or Arch or any modern distro)
+- Python 3.11 or newer
+- OpenSSL installed (it is on most Linux systems by default)
 
 ---
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT — see `LICENSE`
