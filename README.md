@@ -1,290 +1,307 @@
-<div align="center">
+# secure-messenger
 
-<img src="https://img.shields.io/badge/TLS-1.3-00d4aa?style=flat-square&logo=lock&logoColor=white" alt="TLS 1.3"/>
-<img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python"/>
-<img src="https://img.shields.io/badge/License-MIT-f59e0b?style=flat-square" alt="MIT"/>
-<img src="https://img.shields.io/badge/Platform-Linux-FCC624?style=flat-square&logo=linux&logoColor=black" alt="Linux"/>
-<img src="https://img.shields.io/badge/Tests-23%20passing-22c55e?style=flat-square" alt="Tests"/>
-
-<br/><br/>
-
-```
- ___  ___  ___  ___  ___  ___  ___     ___  ___  ___  ___  ___  ___  ___  ___ 
-███████╗███████╗ ██████╗██╗   ██╗██████╗ ███████╗
-██╔════╝██╔════╝██╔════╝██║   ██║██╔══██╗██╔════╝
-███████╗█████╗  ██║     ██║   ██║██████╔╝█████╗  
-╚════██║██╔══╝  ██║     ██║   ██║██╔══██╗██╔══╝  
-███████║███████╗╚██████╗╚██████╔╝██║  ██║███████╗
-╚══════╝╚══════╝ ╚═════╝ ╚═════╝ ╚═╝  ╚═╝╚══════╝
-███╗   ███╗███████╗███████╗███████╗███████╗███╗   ██╗ ██████╗ ███████╗██████╗ 
-████╗ ████║██╔════╝██╔════╝██╔════╝██╔════╝████╗  ██║██╔════╝ ██╔════╝██╔══██╗
-██╔████╔██║█████╗  ███████╗███████╗█████╗  ██╔██╗ ██║██║  ███╗█████╗  ██████╔╝
-██║╚██╔╝██║██╔══╝  ╚════██║╚════██║██╔══╝  ██║╚██╗██║██║   ██║██╔══╝  ██╔══██╗
-██║ ╚═╝ ██║███████╗███████║███████║███████╗██║ ╚████║╚██████╔╝███████╗██║  ██║
-╚═╝     ╚═╝╚══════╝╚══════╝╚══════╝╚══════╝╚═╝  ╚═══╝ ╚═════╝ ╚══════╝╚═╝  ╚═╝
-```
-
-# 🔐 secure-messenger
-
-**A stateless, TLS 1.3 encrypted terminal messenger for Linux.**  
-No accounts. No servers. No databases. No history. Just encryption.
-
-[**Quick Start**](#quick-start) · [**Commands**](#commands) · [**Security Model**](#security-model) · [**Docs**](docs/)
-
-</div>
-
----
-
-## What is this?
-
-`secure-messenger` lets two people on the same network exchange encrypted messages directly from their terminal. Every message is wrapped in **TLS 1.3** — the same protocol your bank uses — and nothing is ever written to disk.
-
-> 💡 **Think of it like a walkie-talkie, but encrypted and running in your terminal.**
+A **stateless, TLS-secured, terminal-based messenger** for Linux.  
+No accounts. No servers. No databases. No message storage.  
+One command to send, one to receive.
 
 ```bash
-chat 192.168.1.5        # two-way live chat
-snd  192.168.1.5 "hi"  # fire-and-forget one message
-rcv                     # listen for incoming messages
+messenger-send 192.168.1.5 "Deploy ready"
 ```
 
 ---
 
-## Why does this exist?
+## What this tool actually is
 
-Sometimes you need to send a message across a LAN without cloud services, accounts, logs, or third-party servers. This tool gives you encrypted communication that lives entirely on your machines and disappears when you close the terminal.
+This is a **point-to-point terminal messaging utility** secured by TLS 1.3.
+It is designed for LAN / closed-network use: DevOps alerts, admin notifications,
+and private LAN communication where you control both endpoints.
 
-**Perfect for:** sysadmins, security researchers, privacy-conscious users, CTF players, or anyone on an air-gapped or semi-trusted network.
+It is **not** Signal, WhatsApp, or a general-purpose secure messenger.
+It does not implement the Signal Protocol, Double Ratchet, or X3DH.
+Those are the right tools for untrusted multi-party public internet messaging.
+This tool is the right tool for direct, controlled, infrastructure-level messaging.
 
 ---
 
-## Features
+## Security model — honest breakdown
 
-- 🔒 **TLS 1.3** — AES-256-GCM or ChaCha20 transport encryption
-- 🛡️ **Optional E2E layer** — AES-256-GCM on top of TLS for double encryption
-- 💬 **Two-way chat** — full-duplex live chat with `chat`
-- 📨 **Fire-and-forget** — send a single message with `snd`
-- 👂 **Listener mode** — wait for messages with `rcv`
-- 🔑 **mTLS support** — mutual TLS client authentication
-- 🚫 **Zero persistence** — nothing written to disk, ever
-- 🐧 **Linux native** — systemd service unit included
-- ✅ **23 unit tests** — reliable and tested
+| Property | Status | How |
+|---|---|---|
+| Transport confidentiality | ✅ Real | TLS 1.3 with AES-256-GCM or ChaCha20-Poly1305 |
+| Transport integrity | ✅ Real | TLS AEAD — any tampering breaks the connection |
+| Transport authentication | ✅ Real | Server cert verified against your own CA |
+| Client authentication | ✅ Optional | Mutual TLS (`--mtls`) — server rejects unknown clients |
+| Payload encryption (E2E layer) | ✅ Real | AES-256-GCM with per-message HKDF-derived keys |
+| Message authentication | ✅ Real | GCM tag — bit-flip in ciphertext causes decryption failure |
+| No message storage | ✅ Real | Messages printed once to terminal, then discarded |
+| No message content in logs | ✅ Real (with `--quiet`) | Use `--quiet` flag when running as a systemd service |
+| Forward secrecy (TLS layer) | ✅ Real | TLS 1.3 ephemeral key exchange |
+| Forward secrecy (E2E layer) | ❌ Not implemented | PSK is static; compromise of key decrypts all recorded traffic |
+| Identity verification | ⚠️ Manual | Cert fingerprint must be verified out-of-band |
+| Anonymity | ❌ Not provided | Source/destination IPs are visible on the network |
+| Metadata protection | ❌ Not provided | Connection timing and packet sizes are visible |
+| Signal-level E2E | ❌ Not claimed | No Double Ratchet, no X3DH, no ratcheting forward secrecy |
+
+### The E2E encryption layer — what it does and does not do
+
+When you use `--e2e`, messages are encrypted with **AES-256-GCM** inside the
+TLS channel. This gives you a second layer of encryption: even if TLS were
+somehow broken, the payload stays encrypted.
+
+The key model is **Pre-Shared Key (PSK)**. Both endpoints share a 32-byte
+secret that you copy out-of-band (in person, via QR code, or secure file copy).
+The PSK is never transmitted over the network.
+
+Each message uses a **unique per-message key** derived from the PSK and a
+fresh random nonce via HKDF-SHA256. This means:
+- Two identical messages produce completely different ciphertext.
+- Knowing one derived key does not reveal the PSK or other derived keys.
+
+**Known limitation:** If an attacker obtains the PSK file, they can decrypt all
+recorded traffic. This is a fundamental property of symmetric PSK systems.
+The roadmap item is to replace PSK with ECDH ephemeral key agreement, which
+would provide session-level forward secrecy.
 
 ---
 
 ## Requirements
 
-| Requirement | Version |
-|---|---|
-| Python | 3.11 or newer |
-| OpenSSL | Any modern version (pre-installed on most Linux) |
-| OS | Linux (Arch, Ubuntu, Debian, etc.) |
+- Linux (Ubuntu 22.04+ / Debian 12+)
+- Python 3.11+
+- OpenSSL (for cert generation)
 
 ---
 
-## Quick Start
+## Installation
 
-### 1 — Clone
+### From .deb package (recommended)
 
 ```bash
-git clone https://github.com/danshu3007-lang/secure-messenger
+sudo apt install ./messenger_1.0.0_amd64.deb
+```
+
+### From source
+
+```bash
+git clone https://github.com/yourorg/secure-messenger
 cd secure-messenger
-```
+pip install -e ".[dev]"
 
-### 2 — Install
-
-```bash
-python3 -m venv .venv
-source .venv/bin/activate
-pip install .
-```
-
-> ⚠️ Use `pip install .` — not `pip install -e .`  
-> Editable installs have a known bug with Python 3.14 + setuptools.
-
-### 3 — Generate test certificates
-
-```bash
+# Generate test certs
 bash tests/certs/gen_test_certs.sh
 ```
 
-### 4 — Verify
-
-```bash
-snd --help
-rcv --help
-chat --help
-```
-
 ---
 
-## Test it locally (2 terminals)
+## Quick start
 
-**Terminal 1:**
-```bash
-source .venv/bin/activate
-MESSENGER_CERT_DIR=tests/certs chat 127.0.0.1 -lp 8443 -pp 8444
-```
+### 1. Generate certificates (first time only)
 
-**Terminal 2:**
-```bash
-source .venv/bin/activate
-MESSENGER_CERT_DIR=tests/certs chat 127.0.0.1 -lp 8444 -pp 8443
-```
+On the **receiver machine**:
 
-Type in either terminal and press Enter. Messages appear on the other side instantly. Press `Ctrl+C` to quit.
-
----
-
-## Commands
-
-### `chat` — Two-way live chat
-
-```bash
-# Two machines on the same network
-# Machine A:
-chat 192.168.1.10
-
-# Machine B:
-chat 192.168.1.5
-
-# Same machine, two terminals (for testing)
-chat 127.0.0.1 -lp 8443 -pp 8444   # Terminal 1
-chat 127.0.0.1 -lp 8444 -pp 8443   # Terminal 2
-
-# With extra E2E encryption
-chat 192.168.1.10 --e2e
-```
-
-| Flag | Default | Description |
-|---|---|---|
-| `-lp PORT` | 8444 | Port you listen on |
-| `-pp PORT` | 8443 | Port your peer listens on |
-| `--e2e` | off | Enable AES-256-GCM second layer |
-
----
-
-### `snd` — Send one message
-
-```bash
-snd 192.168.1.5 "hello"
-snd 192.168.1.5 "hello" -p 9000   # custom port
-snd 192.168.1.5 "hello" --e2e     # E2E encrypted
-```
-
----
-
-### `rcv` — Listen for messages
-
-```bash
-rcv                  # port 8443
-rcv 9000             # custom port
-rcv --e2e            # expect E2E encrypted messages
-rcv --local          # localhost only
-rcv --mtls           # require client certificates
-```
-
----
-
-### `messenger-keygen` — Generate an E2E key
-
-```bash
-messenger-keygen
-```
-
-> 🔑 Copy the key file to the other machine via USB or QR code. **Never send it over the network.**
-
----
-
-## Real LAN Usage
-
-**On the receiver machine:**
 ```bash
 sudo bash certs/gen_certs.sh /etc/messenger/certs 192.168.1.5
-scp /etc/messenger/certs/ca.crt user@192.168.1.10:/etc/messenger/certs/ca.crt
-rcv
 ```
 
-**On the sender machine:**
+Copy `ca.crt` to all sender machines:
+
 ```bash
-snd 192.168.1.5 "Hello!"
-# or start two-way chat:
-chat 192.168.1.5
+scp /etc/messenger/certs/ca.crt user@sender-host:/etc/messenger/certs/ca.crt
+```
+
+### 2. Start the receiver
+
+```bash
+messenger-receive                    # TLS only, default port 8443
+messenger-receive 9000               # Custom port
+messenger-receive --local            # 127.0.0.1 only
+messenger-receive --mtls             # Require client certificates
+messenger-receive --e2e              # Expect AES-256-GCM encrypted payload
+messenger-receive --e2e --quiet      # E2E + suppress display (safe for systemd)
+```
+
+### 3. Send a message
+
+```bash
+messenger-send 192.168.1.5 "Hello"
+messenger-send 192.168.1.5 "Secret" --port 9000
+messenger-send 192.168.1.5 "E2E message" --e2e
 ```
 
 ---
 
-## Security Model
+## End-to-end encryption (optional, on top of TLS)
 
-| Property | Implementation |
+E2E adds AES-256-GCM encryption **inside** the TLS channel.
+
+```bash
+# Generate a shared key on one machine
+messenger-keygen
+# Output: /etc/messenger/certs/e2e.key
+
+# Copy to the other machine OUT-OF-BAND — never over the network
+scp /etc/messenger/certs/e2e.key user@receiver:/etc/messenger/certs/e2e.key
+
+# Send with E2E
+messenger-send 192.168.1.5 "Ultra secret" --e2e
+
+# Receive with E2E
+messenger-receive --e2e
+```
+
+---
+
+## Mutual TLS (mTLS)
+
+mTLS means the server verifies the client's certificate too.
+Only clients with a cert signed by your CA can connect.
+
+```bash
+# Generate a client cert (signed by your CA)
+openssl genrsa -out /etc/messenger/certs/client.key 4096
+openssl req -new -key /etc/messenger/certs/client.key \
+    -out /etc/messenger/certs/client.csr \
+    -subj "/CN=messenger-client/O=SecureMessenger/C=IN"
+openssl x509 -req -days 365 \
+    -in /etc/messenger/certs/client.csr \
+    -CA /etc/messenger/certs/ca.crt \
+    -CAkey /etc/messenger/certs/ca.key \
+    -CAcreateserial \
+    -out /etc/messenger/certs/client.crt
+
+# Start receiver in mTLS mode
+messenger-receive --mtls
+
+# Sender presents its cert automatically if present in MESSENGER_CERT_DIR
+```
+
+---
+
+## Running as a systemd service
+
+```bash
+sudo cp systemd/messenger-receive.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now messenger-receive
+
+# View logs (metadata only — no message content)
+sudo journalctl -u messenger-receive -f
+```
+
+The service file uses `--quiet` by default. In quiet mode:
+- Connection metadata (IP, port, connect/disconnect) goes to journald.
+- Message content is **never printed** and never enters journald.
+
+If you remove `--quiet` and run with `StandardOutput=journal`, message content
+**will** appear in journald. The `--quiet` flag exists precisely to prevent this.
+
+For fully ephemeral operation with zero metadata: run interactively in a
+terminal session, not as a service.
+
+---
+
+## Logging behaviour — explicit table
+
+| Run mode | What reaches journald |
 |---|---|
-| **Confidentiality** | TLS 1.3 — AES-256-GCM or ChaCha20 |
-| **Integrity** | GCM authentication tag — tampering is detected |
-| **Forward secrecy** | TLS 1.3 ephemeral key exchange |
-| **No storage** | Messages printed once, never saved |
-| **Optional E2E** | AES-256-GCM second layer on top of TLS |
-| **No weak ciphers** | SSLv2/3, TLS 1.0/1.1 disabled |
-
-**What this does NOT protect:** IP addresses, connection timing, or packet sizes. Use a VPN or Tor if metadata privacy is also required.
+| systemd service, `--quiet` (default) | Connection metadata only. No message content. |
+| systemd service, no `--quiet` | Connection metadata AND message content. |
+| Interactive terminal | Nothing (terminal output is not persisted). |
 
 ---
 
-## Running Tests
+## Running tests
 
 ```bash
+pip install pytest cryptography
 bash tests/certs/gen_test_certs.sh
-MESSENGER_CERT_DIR=tests/certs pytest tests/unit/ -v
-# Expected: 23 passed
+MESSENGER_CERT_DIR=tests/certs pytest tests/ -v
 ```
 
 ---
 
-## Project Structure
+## Project structure
 
 ```
 secure-messenger/
 ├── messenger/
-│   ├── common/       # shared constants, exceptions, wire format
-│   ├── crypto/       # AES-256-GCM end-to-end encryption
-│   ├── sender/       # snd command
-│   ├── receiver/     # rcv command
-│   ├── shortcuts/    # short command aliases
-│   └── chat/         # two-way live chat
-├── certs/            # certificate generation scripts
-├── systemd/          # background service unit file
-├── scripts/          # build and packaging helpers
-├── tests/            # unit tests
-├── docs/             # full documentation
-└── pyproject.toml    # package definition
+│   ├── common/
+│   │   ├── constants.py      # Ports, limits, cipher list, cert paths
+│   │   ├── exceptions.py     # Custom error types
+│   │   └── serializer.py     # JSON + 4-byte length-prefix wire format
+│   ├── crypto/
+│   │   └── e2e.py            # AES-256-GCM + per-message HKDF key derivation
+│   ├── sender/
+│   │   ├── cli.py            # messenger-send entry point
+│   │   ├── connection.py     # Connect → encrypt → send → close
+│   │   └── tls_client.py     # TLS 1.3 + IP SAN verification
+│   └── receiver/
+│       ├── cli.py            # messenger-receive entry point (--quiet flag)
+│       ├── server.py         # Accept loop → display → discard
+│       └── tls_server.py     # TLS 1.3 server context + optional mTLS
+├── certs/
+│   ├── gen_certs.sh          # Production cert generation
+│   └── README.md             # PKI & cert management guide
+├── systemd/
+│   └── messenger-receive.service   # Uses --quiet by default
+├── scripts/
+│   ├── build_deb.sh
+│   └── postinstall.sh
+├── tests/
+│   ├── certs/gen_test_certs.sh
+│   ├── unit/
+│   │   ├── test_serializer.py
+│   │   └── test_e2e_crypto.py
+│   └── integration/
+│       └── test_end_to_end.py
+└── pyproject.toml
 ```
 
 ---
 
-## Troubleshooting
+## Known limitations and roadmap
 
-| Problem | Fix |
-|---|---|
-| `command not found` | Run `source .venv/bin/activate` first |
-| `Connection refused` | Start `rcv` before running `snd` or `chat` |
-| `Certificate error` | Copy `ca.crt` from receiver machine to sender |
-| `pip install -e .` fails | Use `pip install .` (without the `-e` flag) |
-
----
-
-## Version History
-
-| Version | Changes |
-|---|---|
-| **v2.0.0** | Two-way `chat` command, short aliases `snd`/`rcv`, Python 3.14 fix |
-| **v1.0.0** | Initial release: TLS 1.3, E2E crypto, `messenger-send`/`messenger-receive` |
+| Limitation | Impact | Roadmap |
+|---|---|---|
+| PSK-based E2E — no session forward secrecy | PSK compromise decrypts all recorded traffic | Replace with ECDH ephemeral key exchange |
+| Direct IP only — fails behind NAT | LAN use only | Relay server or STUN/TURN |
+| Source/destination IPs visible | Network observer sees who talks to whom | Route through Tor (future) |
+| No message routing or addressing | One sender, one receiver | DHT mesh layer (future) |
+| No replay protection in E2E layer | Captured ciphertext could be resent | Add sequence numbers or nonce log |
+| Self-signed CA | Trust must be established manually | Optional: integrate with a real CA |
 
 ---
 
-## Contributing
+## Security questions answered directly
 
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a PR.
+**Is this end-to-end encrypted?**  
+When using `--e2e`: yes, with AES-256-GCM and per-message derived keys. The TLS
+layer also provides encryption and authentication independently.
+
+**Can the operator read messages?**  
+By default (without `--quiet`): yes, messages print to the terminal of whoever
+runs the receiver. With `--quiet`: no content is displayed or logged anywhere.
+This tool is designed for use cases where the person running the receiver IS the
+intended recipient.
+
+**Does this have forward secrecy?**  
+At the TLS layer: yes (TLS 1.3 ephemeral key exchange). At the E2E layer: no.
+If the PSK is compromised, past recorded traffic can be decrypted.
+
+**Is this Signal-level security?**  
+No. Signal uses the Double Ratchet protocol with X3DH key agreement. That
+provides post-compromise security, strong forward secrecy, and deniable
+authentication. This tool provides transport security and authenticated
+symmetric encryption. Those are different things, and this project does not
+claim otherwise.
+
+**Should I use this for sensitive communications over the public internet?**  
+No. This tool is designed for LAN / closed-network use between trusted machines
+where you control both endpoints. For public internet use between parties who
+don't share infrastructure, use Signal.
 
 ---
 
 ## License
 
-[MIT](LICENSE) © 2025 danshu3007-lang
+MIT — see `LICENSE` for details.

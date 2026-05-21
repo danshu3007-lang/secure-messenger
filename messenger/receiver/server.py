@@ -2,11 +2,24 @@
 """
 Main receiver loop.
 
-Security guarantees:
-  - No message is ever written to disk.
-  - No message is ever written to the system log (only metadata is logged).
-  - Message content appears on stdout ONLY, then is discarded.
-  - Connection is closed immediately after one message.
+What is logged (to stdout / journald):
+  - Connection metadata: client IP, port, connect/disconnect events
+  - TLS and protocol errors
+  - E2E decryption failure notices (no plaintext included)
+
+What is NEVER logged:
+  - Message content
+  - Decrypted payload
+  - Any part of the E2E key
+
+IMPORTANT — systemd users:
+  When running as a systemd service with StandardOutput=journal,
+  stdout goes into journald. Message content is never printed to
+  stdout in this file, so journald will never receive message content.
+  If you add print(message) calls yourself, that changes this guarantee.
+
+  For fully air-gapped operation with zero metadata: run interactively
+  in a terminal and close the session when done.
 """
 import socket
 import ssl
@@ -22,10 +35,11 @@ def run_receiver(
     mtls: bool = False,
     local_only: bool = False,
     e2e: bool = False,
+    quiet: bool = False,
 ) -> None:
     """
     Accept connections in a loop.
-    Each connection: TLS handshake → read one message → print → discard → close.
+    Each connection: TLS handshake → read one message → display → discard → close.
 
     Parameters
     ----------
@@ -33,6 +47,9 @@ def run_receiver(
     mtls       : If True, require client certificate (mutual TLS).
     local_only : If True, bind to 127.0.0.1 instead of 0.0.0.0.
     e2e        : If True, decrypt the AES-256-GCM layer after TLS unwrap.
+    quiet      : If True, suppress message display entirely (metadata only).
+                 Use this when running as a systemd service to ensure
+                 zero message content enters journald.
     """
     bind_host = "127.0.0.1" if local_only else "0.0.0.0"
     ctx = build_tls_server_context(require_client_cert=mtls)
@@ -42,7 +59,9 @@ def run_receiver(
     if mtls:
         mode_flags.append("mTLS")
     if e2e:
-        mode_flags.append("E2E")
+        mode_flags.append("E2E/AES-256-GCM")
+    if quiet:
+        mode_flags.append("quiet")
     mode_str = " + ".join(mode_flags) if mode_flags else "TLS only"
 
     print(f"[*] Listening on {bind_host}:{port}  [{mode_str}]")
@@ -60,7 +79,7 @@ def run_receiver(
             client_ip   = addr[0]
             client_port = addr[1]
 
-            # Metadata only — never log message content here
+            # Only metadata logged — never message content
             print(f"[+] Connection from {client_ip}:{client_port}")
 
             try:
@@ -75,16 +94,24 @@ def run_receiver(
                         ciphertext = bytes.fromhex(wire_message)
                         message = decrypt_message(ciphertext, psk)
                     except (ValueError, E2EKeyError) as exc:
+                        # Log failure notice only — no plaintext involved here
                         print(f"[!] E2E decryption failed from {client_ip}: {exc}")
                         continue
                 else:
                     message = wire_message
 
-                # ── The only point message content is displayed ──
-                # Goes to stdout only. Never logged. Never stored.
-                print(f"\n  ┌─ MESSAGE from {client_ip} ─────────────────")
-                print(f"  │  {message}")
-                print(f"  └────────────────────────────────────────────\n")
+                if quiet:
+                    # In quiet mode: acknowledge receipt without displaying content.
+                    # Safe to run under systemd without message content in journald.
+                    print(f"[+] Message received from {client_ip} "
+                          f"({len(message)} chars) — display suppressed (--quiet).")
+                else:
+                    # Interactive mode: display to terminal only.
+                    # Do NOT run as a systemd service without --quiet if you want
+                    # zero message content in journald.
+                    print(f"\n  ┌─ MESSAGE from {client_ip} ─────────────────")
+                    print(f"  │  {message}")
+                    print(f"  └────────────────────────────────────────────\n")
 
                 # Graceful TLS shutdown
                 try:

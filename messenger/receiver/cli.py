@@ -1,27 +1,30 @@
 # messenger/receiver/cli.py
 """
-Entry point for: messenger-receive [port] [--mtls] [--local] [--e2e]
+messenger-receive  — CLI entry point for the receiver.
 """
 import argparse
 import sys
 
 from .server import run_receiver
 from ..common.constants import DEFAULT_PORT
+from ..common.exceptions import MessengerError
 
 
-def parse_args() -> argparse.Namespace:
+def main() -> None:
     parser = argparse.ArgumentParser(
         prog="messenger-receive",
-        description="Listen for and display secure, stateless messages.",
+        description="Receive a secure message over TLS.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  messenger-receive                  # Listen on default port 8443
-  messenger-receive 9000             # Custom port
-  messenger-receive --local          # 127.0.0.1 only
-  messenger-receive --mtls           # Require client certs (mTLS)
-  messenger-receive --e2e            # Expect AES-256-GCM encrypted payload
-  messenger-receive 9000 --mtls --e2e
+  messenger-receive                      # Listen on default port 8443
+  messenger-receive 9000                 # Custom port
+  messenger-receive --local              # Loopback only (127.0.0.1)
+  messenger-receive --mtls               # Require client certificate
+  messenger-receive --e2e                # Decrypt AES-256-GCM payload
+  messenger-receive --e2e --quiet        # E2E + suppress message display
+                                         # (safe under systemd — no content
+                                         #  enters journald)
 """,
     )
     parser.add_argument(
@@ -32,32 +35,32 @@ Examples:
         help=f"TCP port to listen on (default: {DEFAULT_PORT})",
     )
     parser.add_argument(
-        "--mtls",
-        action="store_true",
-        help="Enable mutual TLS: require clients to present a CA-signed cert.",
-    )
-    parser.add_argument(
         "--local",
         action="store_true",
-        help="Bind to 127.0.0.1 only — reject connections from other machines.",
+        help="Bind to 127.0.0.1 only (loopback, no LAN exposure)",
+    )
+    parser.add_argument(
+        "--mtls",
+        action="store_true",
+        help="Require mutual TLS: client must present a valid certificate",
     )
     parser.add_argument(
         "--e2e",
         action="store_true",
+        help="Decrypt the AES-256-GCM payload layer (requires shared e2e.key)",
+    )
+    parser.add_argument(
+        "--quiet",
+        action="store_true",
         help=(
-            "Expect AES-256-GCM encrypted payload (E2E layer). "
-            "Requires the same key as the sender (run messenger-keygen)."
+            "Suppress message content display. "
+            "Only metadata (IP, connection events) is printed. "
+            "Use this when running as a systemd service to prevent "
+            "message content from entering journald."
         ),
     )
-    return parser.parse_args()
 
-
-def main() -> None:
-    args = parse_args()
-
-    if not (1 <= args.port <= 65535):
-        print(f"[!] Invalid port: {args.port}. Must be 1–65535.", file=sys.stderr)
-        sys.exit(1)
+    args = parser.parse_args()
 
     try:
         run_receiver(
@@ -65,14 +68,19 @@ def main() -> None:
             mtls=args.mtls,
             local_only=args.local,
             e2e=args.e2e,
+            quiet=args.quiet,
         )
+    except MessengerError as exc:
+        print(f"[!] {exc}", file=sys.stderr)
+        sys.exit(1)
     except PermissionError:
         print(
-            f"[!] Cannot bind to port {args.port}. "
-            "Ports < 1024 require root. Use --port 8443 or higher.",
+            f"[!] Permission denied binding to port {args.port}. "
+            "Try a port > 1024 or run with sudo.",
             file=sys.stderr,
         )
         sys.exit(1)
-    except KeyboardInterrupt:
-        print("\n[!] Stopped.", file=sys.stderr)
-        sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

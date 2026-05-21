@@ -11,8 +11,8 @@
 
 set -euo pipefail
 
-CERT_DIR="${1:-/etc/messenger/certs}"
-SERVER_IP="${2:-127.0.0.1}"
+CERT_DIR="$PWD/certs/generated"
+SERVER_IP="${2:-0.0.0.0}"
 
 echo "[*] Generating certificates in: $CERT_DIR"
 echo "[*] Server IP/hostname:          $SERVER_IP"

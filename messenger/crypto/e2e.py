@@ -2,12 +2,25 @@
 """
 AES-256-GCM end-to-end encryption layer.
 
-Key sharing model (pre-shared key):
+Key model: Pre-Shared Key (PSK)
   Both sender and receiver share a 32-byte secret.
-  Exchange out-of-band (in person, QR code, secure copy).
-  Default path: /etc/messenger/certs/e2e.key (chmod 600)
+  Exchange out-of-band: in person, QR code, or secure file copy.
+  Default path: /etc/messenger/certs/e2e.key  (chmod 600)
 
-For production: replace PSK with ECDH key agreement over the TLS channel.
+Security properties:
+  - Each message uses a unique random 96-bit nonce (os.urandom).
+  - Per-message key is derived from PSK + nonce via HKDF-SHA256.
+    This means every message uses a DIFFERENT encryption key.
+  - AES-256-GCM provides authenticated encryption (AEAD):
+    any bit-flip in the ciphertext is detected and rejected.
+  - If the PSK is compromised, all recorded traffic can be decrypted.
+    This is a known limitation of PSK-based systems.
+    Roadmap: replace PSK with ECDH ephemeral key exchange.
+
+What this is NOT:
+  - Not Signal Protocol / Double Ratchet
+  - Not forward-secret at the session level (no ratcheting)
+  - Not anonymous (IPs are visible at the TLS layer)
 """
 import os
 
@@ -21,6 +34,7 @@ from ..common.exceptions import E2EKeyError
 
 NONCE_SIZE = 12   # 96-bit nonce — standard for AES-GCM
 KEY_SIZE   = 32   # 256-bit key
+CONTEXT    = b"messenger-e2e-v1"
 
 
 def load_psk(path: str = None) -> bytes:
@@ -45,16 +59,21 @@ def load_psk(path: str = None) -> bytes:
     return key
 
 
-def derive_message_key(psk: bytes, context: bytes = b"messenger-e2e-v1") -> bytes:
+def derive_message_key(psk: bytes, nonce: bytes) -> bytes:
     """
-    Derive a per-session key from PSK using HKDF-SHA256.
-    Best practice: never use the PSK directly as an encryption key.
+    Derive a per-message key from PSK + nonce using HKDF-SHA256.
+
+    Using the nonce as HKDF salt means every message gets a unique
+    derived key — even if two messages have the same plaintext,
+    the ciphertext and key are both different.
+
+    This is stronger than using the PSK directly as the encryption key.
     """
     hkdf = HKDF(
         algorithm=hashes.SHA256(),
         length=KEY_SIZE,
-        salt=None,
-        info=context,
+        salt=nonce,        # unique per message — critical for key diversity
+        info=CONTEXT,
     )
     return hkdf.derive(psk)
 
@@ -62,11 +81,17 @@ def derive_message_key(psk: bytes, context: bytes = b"messenger-e2e-v1") -> byte
 def encrypt_message(plaintext: str, psk: bytes) -> bytes:
     """
     Encrypt a message with AES-256-GCM.
-    Returns: [12-byte nonce][ciphertext + 16-byte GCM tag]
-    The GCM tag provides authentication — any tampering is detected on decrypt.
+
+    Steps:
+      1. Generate a random 96-bit nonce.
+      2. Derive a per-message key via HKDF(PSK, nonce).
+      3. Encrypt + authenticate with AES-256-GCM.
+
+    Wire format: [12-byte nonce][ciphertext][16-byte GCM tag]
+    The GCM tag is appended automatically by the AESGCM library.
     """
-    key = derive_message_key(psk)
     nonce = os.urandom(NONCE_SIZE)
+    key = derive_message_key(psk, nonce)
     aesgcm = AESGCM(key)
     ciphertext = aesgcm.encrypt(nonce, plaintext.encode("utf-8"), None)
     return nonce + ciphertext
@@ -75,14 +100,19 @@ def encrypt_message(plaintext: str, psk: bytes) -> bytes:
 def decrypt_message(ciphertext_with_nonce: bytes, psk: bytes) -> str:
     """
     Decrypt and authenticate an AES-256-GCM message.
-    Raises E2EKeyError if authentication tag is invalid (tampered or wrong key).
+
+    Extracts the nonce, re-derives the per-message key, then decrypts.
+    Raises E2EKeyError if the GCM tag is invalid (tampered or wrong key).
     """
     if len(ciphertext_with_nonce) <= NONCE_SIZE:
         raise E2EKeyError("Ciphertext too short — corrupted or empty.")
+
     nonce      = ciphertext_with_nonce[:NONCE_SIZE]
     ciphertext = ciphertext_with_nonce[NONCE_SIZE:]
-    key = derive_message_key(psk)
+
+    key = derive_message_key(psk, nonce)
     aesgcm = AESGCM(key)
+
     try:
         plaintext = aesgcm.decrypt(nonce, ciphertext, None)
     except InvalidTag:
@@ -106,4 +136,5 @@ def generate_psk(output_path: str = None) -> None:
     os.chmod(path, 0o600)
     print(f"[✓] New E2E key written to {path}")
     print("    Share this file with your receiver out-of-band.")
-    print("    Never transmit it over the network.")
+    print("    NEVER transmit it over the network.")
+    print(f"    Key fingerprint (first 8 bytes): {key[:8].hex()}")

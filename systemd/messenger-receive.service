@@ -7,7 +7,7 @@
 #   sudo systemctl daemon-reload
 #   sudo systemctl enable --now messenger-receive
 #
-# View logs:
+# View logs (metadata only — no message content when --quiet is set):
 #   sudo journalctl -u messenger-receive -f
 
 [Unit]
@@ -21,8 +21,11 @@ Type=simple
 User=messenger
 Group=messenger
 
-# Main command — change port or add --e2e / --mtls flags as needed
-ExecStart=/usr/bin/messenger-receive 8443
+# --quiet suppresses message content from stdout.
+# This means journald will never receive message content.
+# Remove --quiet only if you are running interactively and
+# explicitly want messages visible in the terminal.
+ExecStart=/usr/bin/messenger-receive 8443 --quiet
 
 # Graceful reload (re-exec the process)
 ExecReload=/bin/kill -HUP $MAINPID
@@ -48,11 +51,9 @@ ReadOnlyPaths=/etc/messenger/certs
 ReadWritePaths=
 
 # ── Logging ───────────────────────────────────────────────────────────────────
-# Logs go to journald (in-memory ring buffer).
-# Message CONTENT is never logged — only connection metadata.
-# WARNING: if you print message content to stdout it WILL appear in journald.
-# The server.py code intentionally prints messages to stdout for the operator.
-# If you want zero-trace: redirect stdout to /dev/null or use --quiet flag.
+# stdout/stderr go to journald.
+# With --quiet, only connection metadata (IP, port, errors) is printed.
+# Message CONTENT is never printed when --quiet is active.
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=messenger-receive
