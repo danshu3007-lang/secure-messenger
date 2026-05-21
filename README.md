@@ -1,307 +1,191 @@
-# secure-messenger
+# 🧠 Jarvis v2 — Self-Modifying AI Agent
 
-A **stateless, TLS-secured, terminal-based messenger** for Linux.  
-No accounts. No servers. No databases. No message storage.  
-One command to send, one to receive.
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/danshu3007-lang/jarvis-v2/blob/main/notebooks/jarvis_v2_colab.ipynb)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-blue.svg)](https://www.python.org/)
+[![HuggingFace Space](https://img.shields.io/badge/🤗%20HuggingFace-Space-orange)](https://huggingface.co/spaces/danshu3007-lang/jarvis-v2)
 
-```bash
-messenger-send 192.168.1.5 "Deploy ready"
+> An AI agent that **rewrites its own code** when it fails — not metaphorically, literally.
+> Runs free on Google Colab T4 GPU.
+
+---
+
+## What Makes This Different
+
+Most AI agents have fixed tools. When a tool breaks, they return an error and move on.
+
+Jarvis v2 does something different: when a domain handler fails repeatedly, the **AI Mind** reads the failure logs, asks the LLM to write a better version of its own handler code, A/B tests the patch on historical episodes, and hot-swaps it live — all without human intervention.
+
+```
+User message
+    │
+    ▼
+detect_domain()       ← research / coding / os_control
+    │
+    ▼
+run_handler()         ← exec() the current domain handler
+    │
+    ▼
+Tools.*               ← DuckDuckGo / Python sandbox / safe shell
+    │
+    ▼  (after 👍/👎 feedback)
+AIMind.log()          ← stores episode in ChromaDB vector memory
+    │
+    ▼  (every 30 episodes)
+AIMind.cycle()
+    ├── read failures from memory
+    ├── LLM writes new handler code
+    ├── A/B test: old vs new on last 10 episodes
+    └── hot-swap if Δreward > 5%
 ```
 
 ---
 
-## What this tool actually is
+## Key Features
 
-This is a **point-to-point terminal messaging utility** secured by TLS 1.3.
-It is designed for LAN / closed-network use: DevOps alerts, admin notifications,
-and private LAN communication where you control both endpoints.
+**Self-modifying reflexion loop** — inspired by the [Reflexion paper (Shinn et al. 2023)](https://arxiv.org/abs/2303.11366), applied to *code* rather than text. Every accepted patch is versioned and stored.
 
-It is **not** Signal, WhatsApp, or a general-purpose secure messenger.
-It does not implement the Signal Protocol, Double Ratchet, or X3DH.
-Those are the right tools for untrusted multi-party public internet messaging.
-This tool is the right tool for direct, controlled, infrastructure-level messaging.
+**Quantum VQC reward head** — replaces the standard linear reward head with a Variational Quantum Circuit. The circuit auto-grows (adds entanglement layers) when loss plateaus, preventing reward stagnation without manual tuning.
 
----
+**Three live domains** — each with its own handler, reward history, and independent patching loop:
+- 🔬 **Research** — DuckDuckGo web search
+- 💻 **Coding** — Python execution in a subprocess sandbox
+- 🖥️ **OS Control** — safe read-only shell commands (allowlisted)
 
-## Security model — honest breakdown
+**ChromaDB episodic memory** — every interaction is stored as a vector with prompt, response, reward, domain, and version. Failures are retrieved by semantic similarity for the patch prompt.
 
-| Property | Status | How |
-|---|---|---|
-| Transport confidentiality | ✅ Real | TLS 1.3 with AES-256-GCM or ChaCha20-Poly1305 |
-| Transport integrity | ✅ Real | TLS AEAD — any tampering breaks the connection |
-| Transport authentication | ✅ Real | Server cert verified against your own CA |
-| Client authentication | ✅ Optional | Mutual TLS (`--mtls`) — server rejects unknown clients |
-| Payload encryption (E2E layer) | ✅ Real | AES-256-GCM with per-message HKDF-derived keys |
-| Message authentication | ✅ Real | GCM tag — bit-flip in ciphertext causes decryption failure |
-| No message storage | ✅ Real | Messages printed once to terminal, then discarded |
-| No message content in logs | ✅ Real (with `--quiet`) | Use `--quiet` flag when running as a systemd service |
-| Forward secrecy (TLS layer) | ✅ Real | TLS 1.3 ephemeral key exchange |
-| Forward secrecy (E2E layer) | ❌ Not implemented | PSK is static; compromise of key decrypts all recorded traffic |
-| Identity verification | ⚠️ Manual | Cert fingerprint must be verified out-of-band |
-| Anonymity | ❌ Not provided | Source/destination IPs are visible on the network |
-| Metadata protection | ❌ Not provided | Connection timing and packet sizes are visible |
-| Signal-level E2E | ❌ Not claimed | No Double Ratchet, no X3DH, no ratcheting forward secrecy |
+**PPO training scaffold** — policy model wrapped with `AutoModelForCausalLMWithValueHead` via `trl`, ready for full RLHF loop.
 
-### The E2E encryption layer — what it does and does not do
-
-When you use `--e2e`, messages are encrypted with **AES-256-GCM** inside the
-TLS channel. This gives you a second layer of encryption: even if TLS were
-somehow broken, the payload stays encrypted.
-
-The key model is **Pre-Shared Key (PSK)**. Both endpoints share a 32-byte
-secret that you copy out-of-band (in person, via QR code, or secure file copy).
-The PSK is never transmitted over the network.
-
-Each message uses a **unique per-message key** derived from the PSK and a
-fresh random nonce via HKDF-SHA256. This means:
-- Two identical messages produce completely different ciphertext.
-- Knowing one derived key does not reveal the PSK or other derived keys.
-
-**Known limitation:** If an attacker obtains the PSK file, they can decrypt all
-recorded traffic. This is a fundamental property of symmetric PSK systems.
-The roadmap item is to replace PSK with ECDH ephemeral key agreement, which
-would provide session-level forward secrecy.
+**Gradio UI** — chat interface with 👍/👎 feedback buttons that feed directly into the reflexion cycle.
 
 ---
 
-## Requirements
+## Architecture
 
-- Linux (Ubuntu 22.04+ / Debian 12+)
-- Python 3.11+
-- OpenSSL (for cert generation)
-
----
-
-## Installation
-
-### From .deb package (recommended)
-
-```bash
-sudo apt install ./messenger_1.0.0_amd64.deb
+```
+jarvis/
+├── config.py           ← all hyperparameters in one place
+├── quantum_reward.py   ← VQC reward head (auto-evolves on plateau)
+├── tools.py            ← sandboxed domain tools
+├── mind.py             ← AIMind: memory + routing + self-modification
+├── models.py           ← model loading (Mistral-7B + Phi-3-mini, 4-bit)
+├── agent.py            ← JarvisAgent: high-level chat API
+└── ui.py               ← Gradio frontend
 ```
 
-### From source
+**Models used:**
+- Policy: `mistral-7b-instruct-v0.2` — 4-bit quantised via Unsloth + LoRA (rank 16)
+- Reward: `phi-3-mini-4k-instruct` — 4-bit quantised + EvolvingQuantumReward head
+
+**Memory schema (ChromaDB):**
+```json
+{
+  "document": "<user prompt>",
+  "metadata": { "response": "...", "reward": 1.0, "domain": "coding", "version": 3 }
+}
+```
+
+---
+
+## Quickstart — Google Colab (free T4 GPU)
+
+**No local setup needed.** Click the badge at the top or:
+
+1. Open the [Colab notebook](https://colab.research.google.com/github/danshu3007-lang/jarvis-v2/blob/main/notebooks/jarvis_v2_colab.ipynb)
+2. `Runtime → Change runtime type → T4 GPU`
+3. Run **Step 1** (install) — restart runtime if prompted
+4. Run **Steps 2–8** in order
+5. A Gradio link appears — open it and start chatting
+
+First boot downloads ~8 GB of models and takes ~6 minutes.
+
+---
+
+## Local Setup
 
 ```bash
-git clone https://github.com/yourorg/secure-messenger
-cd secure-messenger
+git clone https://github.com/danshu3007-lang/jarvis-v2.git
+cd jarvis-v2
 pip install -e ".[dev]"
 
-# Generate test certs
-bash tests/certs/gen_test_certs.sh
+# Install Unsloth separately (requires CUDA)
+pip install "unsloth[colab-new] @ git+https://github.com/unslothai/unsloth.git"
+
+# Run
+python -m jarvis.main
 ```
+
+Requirements: Python 3.10+, CUDA GPU (8 GB+ VRAM recommended), CUDA toolkit.
 
 ---
 
-## Quick start
+## Tech Stack
 
-### 1. Generate certificates (first time only)
-
-On the **receiver machine**:
-
-```bash
-sudo bash certs/gen_certs.sh /etc/messenger/certs 192.168.1.5
-```
-
-Copy `ca.crt` to all sender machines:
-
-```bash
-scp /etc/messenger/certs/ca.crt user@sender-host:/etc/messenger/certs/ca.crt
-```
-
-### 2. Start the receiver
-
-```bash
-messenger-receive                    # TLS only, default port 8443
-messenger-receive 9000               # Custom port
-messenger-receive --local            # 127.0.0.1 only
-messenger-receive --mtls             # Require client certificates
-messenger-receive --e2e              # Expect AES-256-GCM encrypted payload
-messenger-receive --e2e --quiet      # E2E + suppress display (safe for systemd)
-```
-
-### 3. Send a message
-
-```bash
-messenger-send 192.168.1.5 "Hello"
-messenger-send 192.168.1.5 "Secret" --port 9000
-messenger-send 192.168.1.5 "E2E message" --e2e
-```
-
----
-
-## End-to-end encryption (optional, on top of TLS)
-
-E2E adds AES-256-GCM encryption **inside** the TLS channel.
-
-```bash
-# Generate a shared key on one machine
-messenger-keygen
-# Output: /etc/messenger/certs/e2e.key
-
-# Copy to the other machine OUT-OF-BAND — never over the network
-scp /etc/messenger/certs/e2e.key user@receiver:/etc/messenger/certs/e2e.key
-
-# Send with E2E
-messenger-send 192.168.1.5 "Ultra secret" --e2e
-
-# Receive with E2E
-messenger-receive --e2e
-```
-
----
-
-## Mutual TLS (mTLS)
-
-mTLS means the server verifies the client's certificate too.
-Only clients with a cert signed by your CA can connect.
-
-```bash
-# Generate a client cert (signed by your CA)
-openssl genrsa -out /etc/messenger/certs/client.key 4096
-openssl req -new -key /etc/messenger/certs/client.key \
-    -out /etc/messenger/certs/client.csr \
-    -subj "/CN=messenger-client/O=SecureMessenger/C=IN"
-openssl x509 -req -days 365 \
-    -in /etc/messenger/certs/client.csr \
-    -CA /etc/messenger/certs/ca.crt \
-    -CAkey /etc/messenger/certs/ca.key \
-    -CAcreateserial \
-    -out /etc/messenger/certs/client.crt
-
-# Start receiver in mTLS mode
-messenger-receive --mtls
-
-# Sender presents its cert automatically if present in MESSENGER_CERT_DIR
-```
-
----
-
-## Running as a systemd service
-
-```bash
-sudo cp systemd/messenger-receive.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now messenger-receive
-
-# View logs (metadata only — no message content)
-sudo journalctl -u messenger-receive -f
-```
-
-The service file uses `--quiet` by default. In quiet mode:
-- Connection metadata (IP, port, connect/disconnect) goes to journald.
-- Message content is **never printed** and never enters journald.
-
-If you remove `--quiet` and run with `StandardOutput=journal`, message content
-**will** appear in journald. The `--quiet` flag exists precisely to prevent this.
-
-For fully ephemeral operation with zero metadata: run interactively in a
-terminal session, not as a service.
-
----
-
-## Logging behaviour — explicit table
-
-| Run mode | What reaches journald |
+| Layer | Technology |
 |---|---|
-| systemd service, `--quiet` (default) | Connection metadata only. No message content. |
-| systemd service, no `--quiet` | Connection metadata AND message content. |
-| Interactive terminal | Nothing (terminal output is not persisted). |
+| LLM backbone | Mistral-7B-Instruct, Phi-3-mini |
+| Quantisation | 4-bit NF4 via Unsloth + bitsandbytes |
+| Fine-tuning | LoRA (PEFT), PPO (TRL) |
+| Quantum | Qiskit, Qiskit-Aer (VQC simulator) |
+| Vector memory | ChromaDB (ephemeral) |
+| Web search | DuckDuckGo Search API |
+| UI | Gradio 4.x |
+| Orchestration | Pure Python (no LangChain) |
 
 ---
 
-## Running tests
+## Self-Modification Safety
+
+The reflexion loop has two hard guards:
+
+1. **Sandboxed exec** — patched handler code runs in a fresh `exec()` namespace. It cannot access or modify `AIMind` internals directly. Only `Tools`, `llm`, `re`, and `np` are in scope.
+2. **A/B gate** — a patch is only accepted if the mean reward over the last 10 historical episodes improves by more than `PATCH_THRESHOLD` (default 5%). Patches that don't improve things are silently discarded.
+
+OS commands are restricted to a fixed allowlist: `ls, pwd, date, echo, cat, head, tail, wc`.
+
+---
+
+## Project Structure
+
+```
+jarvis-v2/
+├── jarvis/             ← core package
+├── notebooks/          ← Colab notebook
+├── tests/              ← pytest suite (CPU-safe, no GPU required)
+├── scripts/            ← nightly autonomous training loop
+├── docs/               ← architecture, quantum reward, self-modification docs
+├── docker/             ← Dockerfile for containerised deployment
+└── assets/             ← banner, diagrams
+```
+
+---
+
+## Running Tests
 
 ```bash
-pip install pytest cryptography
-bash tests/certs/gen_test_certs.sh
-MESSENGER_CERT_DIR=tests/certs pytest tests/ -v
+pytest tests/ -v
 ```
+
+Tests are CPU-safe — no GPU or model download required. They cover domain detection, memory logging, patch proposal/rejection, quantum circuit evolution, and all three tools.
 
 ---
 
-## Project structure
+## Roadmap
 
-```
-secure-messenger/
-├── messenger/
-│   ├── common/
-│   │   ├── constants.py      # Ports, limits, cipher list, cert paths
-│   │   ├── exceptions.py     # Custom error types
-│   │   └── serializer.py     # JSON + 4-byte length-prefix wire format
-│   ├── crypto/
-│   │   └── e2e.py            # AES-256-GCM + per-message HKDF key derivation
-│   ├── sender/
-│   │   ├── cli.py            # messenger-send entry point
-│   │   ├── connection.py     # Connect → encrypt → send → close
-│   │   └── tls_client.py     # TLS 1.3 + IP SAN verification
-│   └── receiver/
-│       ├── cli.py            # messenger-receive entry point (--quiet flag)
-│       ├── server.py         # Accept loop → display → discard
-│       └── tls_server.py     # TLS 1.3 server context + optional mTLS
-├── certs/
-│   ├── gen_certs.sh          # Production cert generation
-│   └── README.md             # PKI & cert management guide
-├── systemd/
-│   └── messenger-receive.service   # Uses --quiet by default
-├── scripts/
-│   ├── build_deb.sh
-│   └── postinstall.sh
-├── tests/
-│   ├── certs/gen_test_certs.sh
-│   ├── unit/
-│   │   ├── test_serializer.py
-│   │   └── test_e2e_crypto.py
-│   └── integration/
-│       └── test_end_to_end.py
-└── pyproject.toml
-```
+- [ ] Connect VQC to real IBM quantum hardware via `qiskit-ibm-runtime`
+- [ ] Replace proxy A/B reward with full VQC reward model scoring
+- [ ] Persistent ChromaDB (disk-backed) for cross-session memory
+- [ ] Add `sql_query` and `web_scraping` domains
+- [ ] Multi-agent: separate Jarvis instances collaborating via shared memory
 
 ---
 
-## Known limitations and roadmap
+## Contributing
 
-| Limitation | Impact | Roadmap |
-|---|---|---|
-| PSK-based E2E — no session forward secrecy | PSK compromise decrypts all recorded traffic | Replace with ECDH ephemeral key exchange |
-| Direct IP only — fails behind NAT | LAN use only | Relay server or STUN/TURN |
-| Source/destination IPs visible | Network observer sees who talks to whom | Route through Tor (future) |
-| No message routing or addressing | One sender, one receiver | DHT mesh layer (future) |
-| No replay protection in E2E layer | Captured ciphertext could be resent | Add sequence numbers or nonce log |
-| Self-signed CA | Trust must be established manually | Optional: integrate with a real CA |
-
----
-
-## Security questions answered directly
-
-**Is this end-to-end encrypted?**  
-When using `--e2e`: yes, with AES-256-GCM and per-message derived keys. The TLS
-layer also provides encryption and authentication independently.
-
-**Can the operator read messages?**  
-By default (without `--quiet`): yes, messages print to the terminal of whoever
-runs the receiver. With `--quiet`: no content is displayed or logged anywhere.
-This tool is designed for use cases where the person running the receiver IS the
-intended recipient.
-
-**Does this have forward secrecy?**  
-At the TLS layer: yes (TLS 1.3 ephemeral key exchange). At the E2E layer: no.
-If the PSK is compromised, past recorded traffic can be decrypted.
-
-**Is this Signal-level security?**  
-No. Signal uses the Double Ratchet protocol with X3DH key agreement. That
-provides post-compromise security, strong forward secrecy, and deniable
-authentication. This tool provides transport security and authenticated
-symmetric encryption. Those are different things, and this project does not
-claim otherwise.
-
-**Should I use this for sensitive communications over the public internet?**  
-No. This tool is designed for LAN / closed-network use between trusted machines
-where you control both endpoints. For public internet use between parties who
-don't share infrastructure, use Signal.
+See [CONTRIBUTING.md](CONTRIBUTING.md). The most impactful contribution is adding a new domain — the checklist is in the guide.
 
 ---
 
 ## License
 
-MIT — see `LICENSE` for details.
+MIT — see [LICENSE](LICENSE).
